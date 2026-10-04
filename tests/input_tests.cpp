@@ -93,5 +93,51 @@ int main() {
  e={};e.type=SDL_EVENT_WINDOW_FOCUS_LOST;processInput(e);
  require(!readMousePosition(mx,my) && !shortcutDown(0,1));
  setMapActionHandler(nullptr);
+ // Steam Input gyro-as-mouse must not replace a stationary map reticle.
+ // Hover ownership also drives summary labels and the dungeon reticle, even
+ // when the marker has no individual Check Details target.
+ resetInput();
+ e={}; e.type=SDL_EVENT_WINDOW_FOCUS_GAINED; processInput(e);
+ auto motion=[&](float x,float y) {
+  e={}; e.type=SDL_EVENT_MOUSE_MOTION; e.motion.x=x; e.motion.y=y;
+  require(!processInput(e)); // gyro/mouse events still reach the host
+ };
+ auto axis=[&](unsigned id,unsigned which,int value) {
+  e={}; e.type=SDL_EVENT_GAMEPAD_AXIS_MOTION; e.gaxis.which=id;
+  e.gaxis.axis=which; e.gaxis.value=value; return processInput(e);
+ };
+ motion(50,50); require(readMousePosition(mx,my) && mx==50 && my==50);
+ axis(9,SDL_GAMEPAD_AXIS_LEFTX,20000);
+ motion(90,90); require(!readMousePosition(mx,my));
+ axis(9,SDL_GAMEPAD_AXIS_LEFTX,0);
+ for(int i=0;i<1000;++i) {
+  motion(90+i,90-i); // neither persistent drift nor large motion steals hover
+  require(!readMousePosition(mx,my));
+ }
+ require(!shortcutDown(0,1)); // no held button is needed to retain hover
+ e={}; e.type=SDL_EVENT_WINDOW_MOUSE_LEAVE; processInput(e);
+ motion(25,25); require(!readMousePosition(mx,my));
+ // An actual mouse press is an explicit handoff, including direct check clicks.
+ targets.clear({0,0,100,100}); targets.add(50,50,12,12,"Chest");
+ details=false; setMapActionHandler(handle);
+ require(click(50,50,SDL_BUTTON_LEFT,true) && details);
+ require(readMousePosition(mx,my));
+ click(50,50,SDL_BUTTON_LEFT,false);
+ motion(60,60); require(readMousePosition(mx,my) && mx==60 && my==60);
+ axis(9,SDL_GAMEPAD_AXIS_LEFTX,2000); require(readMousePosition(mx,my)); // stick jitter
+ require(button(9,SDL_GAMEPAD_BUTTON_EAST,true) && !details);
+ motion(60,60); require(!readMousePosition(mx,my));
+ click(60,60,SDL_BUTTON_RIGHT,true); require(readMousePosition(mx,my));
+ button(9,SDL_GAMEPAD_BUTTON_EAST,false); require(readMousePosition(mx,my)); // release cannot steal it back
+ button(9,SDL_GAMEPAD_BUTTON_SOUTH,true); require(!readMousePosition(mx,my));
+ click(60,60,SDL_BUTTON_RIGHT,false); require(!readMousePosition(mx,my));
+ e={}; e.type=SDL_EVENT_GAMEPAD_REMOVED; e.gdevice.which=9; processInput(e);
+ motion(40,40); require(readMousePosition(mx,my)); // unplugging restores mouse-only use
+ axis(10,SDL_GAMEPAD_AXIS_RIGHTX,-20000); motion(40,40); require(!readMousePosition(mx,my));
+ e={}; e.type=SDL_EVENT_WINDOW_FOCUS_LOST; processInput(e);
+ motion(40,40); require(!readMousePosition(mx,my));
+ e={}; e.type=SDL_EVENT_WINDOW_FOCUS_GAINED; processInput(e);
+ motion(40,40); require(readMousePosition(mx,my)); // reset cannot strand mouse users
+ setMapActionHandler(nullptr);
  std::cout << "Input and map interaction regression scenarios passed\n";
 }

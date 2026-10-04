@@ -18,7 +18,10 @@ bool mapChordDown(const Pad& pad) {
 }
 std::map<SDL_JoystickID,Pad> pads;
 bool focused=true;
-bool mouseValid=false, mouseActive=false, mouseHeld=false;
+// Mouse motion can be Steam Input gyro, indistinguishable from a real mouse.
+// Once a controller claims map hover, retain its reticle until a mouse press.
+// This only chooses the tracker's hover source; motion still reaches the host.
+bool mouseValid=false, mouseActive=true, mouseHeld=false;
 float mouseX=0,mouseY=0;
 MapActionHandler mapActionHandler=nullptr;
 constexpr int buttons[]={-1,0,1,2,3,9,10,4,6,7,8,11,12,13,14};
@@ -54,23 +57,26 @@ HookAction eventHook(ModContext*,void* args,void*,void*) {
 #endif
 }
 void setMapActionHandler(MapActionHandler handler) { mapActionHandler=handler; }
-void resetInput() { keys.fill(false); pads.clear(); mouseValid=mouseActive=mouseHeld=false; }
+void resetInput() { keys.fill(false); pads.clear(); mouseValid=mouseHeld=false; mouseActive=true; }
 bool readMousePosition(float& x,float& y) { x=mouseX; y=mouseY; return focused && mouseValid && mouseActive; }
 bool processInput(const SDL_Event& e) {
  if(e.type==SDL_EVENT_WINDOW_FOCUS_LOST) { focused=false; resetInput(); }
  else if(e.type==SDL_EVENT_WINDOW_FOCUS_GAINED) focused=true;
- else if(e.type==SDL_EVENT_GAMEPAD_REMOVED) pads.erase(e.gdevice.which);
+ else if(e.type==SDL_EVENT_GAMEPAD_REMOVED) {
+  pads.erase(e.gdevice.which);
+  if(pads.empty()) mouseActive=true;
+ }
  else if(focused) {
   if(e.type==SDL_EVENT_KEY_DOWN || e.type==SDL_EVENT_KEY_UP) {
    if(e.key.scancode>0 && e.key.scancode<SDL_SCANCODE_COUNT) keys[e.key.scancode]=e.type==SDL_EVENT_KEY_DOWN;
    if(e.type==SDL_EVENT_KEY_DOWN && !e.key.repeat && e.key.scancode==SDL_SCANCODE_ESCAPE && mapActionHandler)
     return mapActionHandler(MapAction::Dismiss,0,0);
   } else if(e.type==SDL_EVENT_GAMEPAD_BUTTON_DOWN || e.type==SDL_EVENT_GAMEPAD_BUTTON_UP) {
-   mouseActive=false;
    if(e.gbutton.button<SDL_GAMEPAD_BUTTON_COUNT) {
     auto& pad=pads[e.gbutton.which];
     const bool pressed=e.type==SDL_EVENT_GAMEPAD_BUTTON_DOWN;
     const bool edge=pressed && !pad.buttons[e.gbutton.button];
+    if(edge) mouseActive=false;
     const bool chordWasDown=mapChordDown(pad);
     pad.buttons[e.gbutton.button]=pressed;
     if(edge && e.gbutton.button==SDL_GAMEPAD_BUTTON_EAST && mapActionHandler && mapActionHandler(MapAction::Dismiss,0,0)) return true;
@@ -88,9 +94,10 @@ bool processInput(const SDL_Event& e) {
    if(!chordWasDown && mapChordDown(pad) && mapActionHandler)
     return mapActionHandler(MapAction::ControllerConfirm,0,0);
   } else if(e.type==SDL_EVENT_MOUSE_MOTION) {
-   mouseX=e.motion.x; mouseY=e.motion.y; mouseValid=mouseActive=true;
+   mouseX=e.motion.x; mouseY=e.motion.y; mouseValid=true;
   } else if(e.type==SDL_EVENT_MOUSE_BUTTON_DOWN || e.type==SDL_EVENT_MOUSE_BUTTON_UP) {
-   mouseX=e.button.x; mouseY=e.button.y; mouseValid=mouseActive=true;
+   mouseX=e.button.x; mouseY=e.button.y; mouseValid=true;
+   if(e.type==SDL_EVENT_MOUSE_BUTTON_DOWN) mouseActive=true;
    if(e.button.button==SDL_BUTTON_LEFT) {
     const bool pressed=e.type==SDL_EVENT_MOUSE_BUTTON_DOWN;
     const bool edge=pressed && !mouseHeld; mouseHeld=pressed;

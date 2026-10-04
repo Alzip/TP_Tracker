@@ -103,3 +103,25 @@ This is not an exhaustive in-game verification of every inventory, setting and e
 Both seed logs contain the same Settings section; changing to the spoiler log does not repair an inventory adapter. The tracker reads settings without using spoiler item placements as proof of ownership. No game inventory, key counters or Randomizer save blobs are written by these fixes.
 
 The popup and platform binaries compile, but visual/controller gameplay validation must be performed in Dusklight. Native iOS loading still requires a compatible signed/bundled host, as described in MOBILE.md.
+
+## 2026-10-04: Steam Input gyro and map hover
+
+The supplied clip switches the Check Info badge between controller and mouse as
+the bottom Goron Mines / Eldin cave labels appear and disappear. Every SDL mouse
+motion previously set `mouseActive=true`, overriding the map reticle even when
+the event was gyro-as-mouse. The regression reproduces the ownership loss after
+a single mouse motion following stick movement; it fails on the previous code.
+
+Controller presses and axes outside the existing deadzone now retain hover
+ownership until a mouse press, focus/reset, or the last tracked pad disconnects.
+Mouse coordinates continue updating and events are not consumed, preserving
+Dusklight's own menus and gyro gameplay. Releases do not change ownership.
+The same `readMousePosition` selection drives overworld single/group/temple
+labels, the control badge and the temple-map reticle; it does not depend on
+whether a marker can open individual Check Details or on hint visibility.
+
+Regression coverage: mouse-only startup; controller movement followed by 1,000
+small/large mouse motions while idle; pointer leave/reentry; deliberate mouse
+click opening; sub-deadzone stick jitter; button releases; pad disconnection;
+focus loss/recovery; existing controller chord and hint-on/off scenarios.
+No physical Steam Controller session has been replayed locally.
