@@ -1,10 +1,15 @@
-# TPTracker 0.4.40
+# TPTracker 0.4.41
+
+## 0.4.41 Lakebed access and gyro map hover
+
+- Fixes the **Lakebed Temple Before Deku Toad Alcove Chest** falsely requiring three small keys. The tracker now budgets the two actual east water-route doors using unspent keys and saved unlocked doors, and recognizes water already released. The underwater key gate, item requirements, and seed key settings still apply.
+
+- Map hover labels and available-check counts now keep the controller reticle selected when Steam Input gyro sends mouse motion. Stopping the stick no longer hands selection to an unrelated mouse pointer. This also stabilizes the controller hint and temple-map reticle. To switch map selection back to the mouse after using a controller, press a mouse button; left-clicking a check still opens its details. Mouse input in Dusklight menus and gameplay is not blocked.
+
+The mod package keeps the filename **TP_Randomizer_Tracker.dusk**; its internal version identifies each update.
 
 ## 0.4.40 persistent access and arena markers
 
-- Fixes the **Lakebed Temple Before Deku Toad Alcove Chest** falsely requiring three small keys. The tracker now budgets the two actual east water-route doors using unspent keys and saved unlocked doors, and recognizes water already released. The underwater key gate, item requirements, and seed key settings still apply. Included in **0.4.40**.
-
-- Map hover labels and available-check counts now keep the controller reticle selected when Steam Input gyro sends mouse motion. Stopping the stick no longer hands selection to an unrelated mouse pointer. This also stabilizes the controller hint and temple-map reticle. To switch map selection back to the mouse after using a controller, press a mouse button; left-clicking a check still opens its details. Mouse input in Dusklight menus and gameplay is not blocked. This fix remains in **0.4.40**.
 - Gerudo Desert and Mirror Chamber warps now honor **Unlock Map Regions** and saved desert-map discovery. Starting with the portals and Shadow Crystal no longer incorrectly requires visiting the desert through Auru's Memo first. This also restores the warp route to Palace of Twilight while preserving its chosen entrance requirement and each check's items/keys. These fixes are included in the rebuilt **0.4.40** package; the version number is unchanged.
 - Gate Keys/Rutela access, collected dungeon rewards and howling milestones now read persistent event bytes. Randomizer NPC/cutscene hooks can deliberately return different answers in Castle Town, Goron Mines or Snowpeak; those temporary answers no longer drive tracker state. This fixes the Fyrus reward returning to map counts outside his arena and Rutela appearing OPEN only in Castle Town without real Gate Keys. Gate Keys or Keysy are still required.
 - City in the Sky recognizes a repaired cannon as durable access proof and retains the seed's Sky Book bypass and Clawshot requirements. Three City checks now model human/wolf actions in sequence instead of requiring both forms simultaneously. Replaying the supplied seed's settings with all required inventory makes all 29 City checks OPEN; the report of the entire temple being locked was not reproduced from the spoiler log alone.
