@@ -392,6 +392,72 @@ int main(int argc, char** argv) {
         for(auto& area:forestData["areas"]) if(area["Name"]=="Root") area["Exits"]=Json::object();
         forestDoor.load(forestData); unlocked=true; updateDoor(0,1);
         require(forestDoor.accessible.at("Forest Temple Second Monkey Under Bridge Chest")==Truth::no,"opened door bypasses reaching the temple");
+        // The pre-Deku-Toad land alcove uses the east water route, not the
+        // third key's underwater gate. Exercise the real graph from the entrance.
+        auto lakebedData=data;
+        for(auto& area:lakebedData["areas"]) if(area["Name"]=="Root") {
+            area["Exits"]={{"Lakebed Temple Entrance","Human_Link"}};
+            area["Events"]["Can Refill Regular Bombs"]="Nothing";
+            area["Events"]["Can Refill Arrows"]="Nothing";
+        }
+        Model lakebed; lakebed.load(lakebedData); lakebed.seedLoaded=true; lakebed.settings=warp.settings;
+        lakebed.settings["Small Keys"]="Own Dungeon";
+        for(const auto& item:data.at("items")) lakebed.inventory[item.at("Name")]=0;
+        for(const char* item:{"Zora Armor","Bomb Bag","Progressive Bow","Ball and Chain","Iron Boots"})
+            lakebed.inventory[item]=1;
+        lakebed.countedItems.insert("Lakebed Temple Small Key");
+        std::set<int> lakebedFlags;
+        auto updateLakebed=[&](int spare) {
+            lakebedEastWaterState(lakebed.inventory,spare,[&](int save,int flag) {
+                require(save==0x12 && (flag==0x34 || flag==0x24 || flag==8),"wrong Lakebed route switches");
+                return lakebedFlags.contains(flag);
+            });
+            lakebed.inventory["Lakebed Temple Small Key"]=spare+lakebedFlags.count(0x23)
+                +lakebedFlags.count(0x24)+lakebedFlags.count(0x34);
+            lakebed.solve();
+        };
+        const char* alcove="Lakebed Temple Before Deku Toad Alcove Chest";
+        updateLakebed(2);
+        require(lakebed.accessible.at(alcove)==Truth::yes,"Lakebed land alcove incorrectly needs third small key");
+        require(lakebed.accessible.at("Lakebed Temple Before Deku Toad Underwater Left Chest")==Truth::no,
+                "east water route bypasses separate underwater key gate");
+        require(lakebed.accessible.at("Lakebed Temple East Water Supply Clawshot Chest")==Truth::no,
+                "east water route grants missing Clawshot");
+        updateLakebed(1);
+        require(lakebed.accessible.at(alcove)==Truth::no,"one key reused to unlock both east route doors");
+        lakebedFlags={0x34}; updateLakebed(1);
+        require(lakebed.accessible.at(alcove)==Truth::yes,"one spent and one available key cannot open east water route");
+        lakebedFlags={0x34,0x24}; updateLakebed(0);
+        require(lakebed.accessible.at(alcove)==Truth::yes,"spent keys relock Lakebed land alcove");
+        require(lakebed.checkDetails(alcove).find("Area access: OPEN")!=std::string::npos,
+                "Lakebed alcove details still show locked area");
+        lakebedFlags={0x34,0x23}; updateLakebed(0);
+        require(lakebed.accessible.at(alcove)==Truth::no,"key spent underwater opens east water supply gate");
+        lakebedFlags.clear(); lakebed.inventory["Progressive Bow"]=0; updateLakebed(2);
+        require(lakebed.accessible.at(alcove)==Truth::no,"keys bypass stalactite room equipment");
+        lakebed.inventory["Progressive Bow"]=1; lakebed.inventory["Zora Armor"]=0; updateLakebed(2);
+        require(lakebed.accessible.at(alcove)==Truth::no,"east water route bypasses temple entrance equipment");
+        lakebed.inventory["Zora Armor"]=1;
+        // Saved water remains usable without recomputing how the lever was
+        // reached. It is not proof of Clawshot, west water or a boss key.
+        lakebedFlags={8}; updateLakebed(0);
+        require(lakebed.accessible.at(alcove)==Truth::yes,"saved east water release ignored");
+        require(lakebed.events.at("Can Pull West Water Supply Lever")!=Truth::yes,
+                "east water release grants west water");
+        require(lakebed.reached.at("Lakebed Temple Boss Room")[0]!=Truth::yes,
+                "east water release bypasses boss requirements");
+        lakebedFlags.clear(); updateLakebed(0);
+        require(lakebed.accessible.at(alcove)==Truth::no,"Lakebed water or doors leak from previous save");
+        for(const char* setting:{"Own Dungeon","Keysanity","Vanilla"}) {
+            lakebed.settings["Small Keys"]=setting; updateLakebed(2);
+            require(lakebed.accessible.at(alcove)==Truth::yes,"two-key east route broken for seed setting");
+        }
+        lakebed.settings["Small Keys"]="Keysy"; updateLakebed(0);
+        require(lakebed.accessible.at(alcove)==Truth::yes,"Keysy Lakebed route broken");
+        lakebed.settings["Small Keys"]="Own Dungeon";
+        for(auto& area:lakebedData["areas"]) if(area["Name"]=="Root") area["Exits"]=Json::object();
+        lakebed.load(lakebedData); lakebedFlags={8,0x34,0x24}; updateLakebed(0);
+        require(lakebed.accessible.at(alcove)==Truth::no,"saved Lakebed progress bypasses reaching temple");
         // Lake cave darkness is optional; only the two switch-spawned chests
         // need torch lighting. Dusklight calls chest flag 14 Seventh, not Sixth.
         auto lakeData=data;

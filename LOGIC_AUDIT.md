@@ -125,3 +125,32 @@ small/large mouse motions while idle; pointer leave/reentry; deliberate mouse
 click opening; sub-deadzone stick jitter; button releases; pad disconnection;
 focus loss/recovery; existing controller chord and hint-on/off scenarios.
 No physical Steam Controller session has been replayed locally.
+
+## 2026-10-05: Lakebed pre-Deku-Toad land alcove
+
+The report specifies normal small keys. With the graph rooted at Lakebed's
+entrance and sufficient non-Clawshot equipment, two small keys reproduced the
+false LOCKED status. The generator requires three total keys at the east water
+supply gate for Own Dungeon/Keysanity; the land alcove route uses only two doors.
+The third key is vanilla's reward in this alcove, not its prerequisite.
+
+Native D_MN01 records identify the central east-upper tadoor switch as 0x34
+(STG_00, angle.z low byte), the R10_00 water-supply kshtr00 as 0x24 (parameter
+low byte), and the separate R09_00 underwater gate as 0x23. Save table is 0x12.
+The adapter compares the unspent live/saved key count with the number of still
+locked doors on the east water route (0x34 and 0x24); this is an additional
+route alongside the generator's seed-aware rule. It cannot spend one key twice.
+R10_00's lower buraA lever, wtGate and l3water use switch 0x08. A Root event
+contributes this observed east-water state to the existing lever event, without
+granting any area directly. All reads use dComIfGs_isStageSwitch (live inside,
+saved outside), and the facts are refreshed with each inventory snapshot.
+No save data is written.
+
+The new graph regression fails against the old catalogue and passes with the
+fix. It covers two unused keys, one spent plus one unused, both doors unlocked,
+one insufficient key, a key spent on the wrong gate, saved water release and
+cleared facts from another save. Negative cases retain the temple entrance,
+bomb-launching, underwater gate, Clawshot, west-water and boss requirements.
+Own Dungeon, Vanilla, Keysanity and Keysy variants are covered. The complete
+model/input/map/preferences suites and asset validation pass. The affected
+player's exact seed/save was not supplied, so live gameplay remains unverified.

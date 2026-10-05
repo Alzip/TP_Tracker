@@ -490,6 +490,8 @@ void scan() {
         int count = key.save == dStage_stagInfo_GetSaveTbl(stageInfo) ? dComIfGs_getKeyNum()
             : dComIfGs_getSaveData()->getSave(key.save).getBit().getKeyNum();
         if (key.save == 0x10) inventory["Forest Temple Small Keys Available"] = count;
+        if (key.save == 0x12) tracker::lakebedEastWaterState(inventory, count,
+            [](int save, int flag) { return dComIfGs_isStageSwitch(save, flag) != 0; });
         for (int door : key.doors) count += dComIfGs_isStageSwitch(key.save, door) != 0;
         inventory[small] = count;
         model.countedItems.insert(small);

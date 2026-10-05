@@ -46,4 +46,18 @@ template<class ReadStageSwitch>
 bool forestSecondMonkeyDoorUnlocked(ReadStageSwitch stageSwitch) {
     return stageSwitch(0x10, 0x0b);
 }
+
+// D_MN01: the central east-upper door (STG_00, switch 0x34) and east
+// water-supply gate (R10_00, 0x24) precede the land-side alcove chest.
+// Count both unopened doors, so one spare key cannot be reused for both.
+// The separate underwater gate in R09_00 (0x23) is not on this route.
+template<class ReadStageSwitch>
+void lakebedEastWaterState(std::map<std::string,int>& inventory, int availableKeys,
+                          ReadStageSwitch stageSwitch) {
+    int needed = 0;
+    for (int flag : {0x34, 0x24}) needed += !stageSwitch(0x12, flag);
+    inventory["Lakebed Temple East Water Route Openable"] = availableKeys >= needed;
+    // R10_00's lower buraA lever / wtGate and l3water actors share switch 8.
+    inventory["Lakebed Temple East Water Released"] = stageSwitch(0x12, 0x08);
+}
 }

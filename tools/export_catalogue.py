@@ -83,6 +83,19 @@ for area in world:
         old_requirement = area['Exits'][target]
         area['Exits'][target] = (f"({old_requirement}) or (Human_Link and "
             "(Forest_Temple_Second_Monkey_Door_Unlocked or Forest_Temple_Small_Keys_Available))")
+    # Live keys and the two actual east-route door flags avoid the generator's
+    # three-key worst-case requirement before the land-side alcove (itself a
+    # vanilla small key). The adapter budgets all still-locked route doors.
+    # Keep the original seed-aware route and the separate underwater gate.
+    if area['Name'] == 'Lakebed Temple East Water Supply Room':
+        target = 'Lakebed Temple East Water Supply Room Past Locked Door'
+        area['Exits'][target] = (f"({area['Exits'][target]}) or "
+            "Lakebed_Temple_East_Water_Route_Openable")
+    # Actual released water remains usable after leaving/reloading the temple.
+    # Sharing the event name ORs observed progress with the normal lever route;
+    # no area is granted directly and other doors/equipment still apply.
+    if area['Name'] == 'Root':
+        area.setdefault('Events', {})['Can Pull East Water Supply Lever'] = 'Lakebed_Temple_East_Water_Released'
     # These events are synthesized by the generator, not stored in its YAML.
     events = area.setdefault('Events', {}) or {}
     area['Events'] = events

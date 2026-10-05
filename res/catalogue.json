@@ -23126,7 +23126,7 @@
       "Name": "Lakebed Temple East Water Supply Room",
       "Region": "Lakebed Temple",
       "Exits": {
-        "Lakebed Temple East Water Supply Room Past Locked Door": "count(Lakebed_Temple_Small_Key, 3) or Small_Keys == Keysy or (Small_Keys == Vanilla and count(Lakebed_Temple_Small_Key, 2))",
+        "Lakebed Temple East Water Supply Room Past Locked Door": "(count(Lakebed_Temple_Small_Key, 3) or Small_Keys == Keysy or (Small_Keys == Vanilla and count(Lakebed_Temple_Small_Key, 2))) or Lakebed_Temple_East_Water_Route_Openable",
         "Lakebed Temple Outside East Waterwheel Room Second Floor North Near East Water Supply Room": "Nothing",
         "Lakebed Temple Outside East Waterwheel Room Second Floor South Near East Water Supply Room": "Nothing"
       },
@@ -27822,7 +27822,9 @@
         "Root Wolf Day": "(Wolf_Link and (Starting_Form == Wolf or Shadow_Crystal)) and (Starting_Time_of_Day == Morning or Starting_Time_of_Day == Noon)",
         "Root Wolf Night": "(Wolf_Link and (Starting_Form == Wolf or Shadow_Crystal)) and (Starting_Time_of_Day == Evening or Starting_Time_of_Day == Night)"
       },
-      "Events": {}
+      "Events": {
+        "Can Pull East Water Supply Lever": "Lakebed_Temple_East_Water_Released"
+      }
     },
     {
       "Name": "Root Human Day",
