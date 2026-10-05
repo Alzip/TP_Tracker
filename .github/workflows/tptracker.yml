@@ -90,7 +90,9 @@ jobs:
           echo '236bc5cd4bda03a8dd53a4531efff1fec3bcd19b09890893b9b6f8f5ae77f041  symgen' | sha256sum -c -
           chmod +x symgen
       - name: Combine and validate native metadata
-        run: python3 .deps/dusklight/mods/randomizer/tools/merge_mod.py --symgen ./symgen -o dist/TP_Randomizer_Tracker.dusk packages/*/*.dusk
+        run: |
+          version=$(python3 -c 'import json; print(json.load(open("mod.json"))["version"])')
+          python3 .deps/dusklight/mods/randomizer/tools/merge_mod.py --symgen ./symgen -o "dist/TPTracker-${version}-multiplatform.dusk" packages/*/*.dusk
       - uses: actions/upload-artifact@v7
         with:
           name: TPTracker-multiplatform

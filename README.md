@@ -6,7 +6,7 @@
 
 - Map hover labels and available-check counts now keep the controller reticle selected when Steam Input gyro sends mouse motion. Stopping the stick no longer hands selection to an unrelated mouse pointer. This also stabilizes the controller hint and temple-map reticle. To switch map selection back to the mouse after using a controller, press a mouse button; left-clicking a check still opens its details. Mouse input in Dusklight menus and gameplay is not blocked.
 
-The mod package keeps the filename **TP_Randomizer_Tracker.dusk**; its internal version identifies each update.
+Release packages use **TPTracker-X.X.XX-multiplatform.dusk**. This release is **TPTracker-0.4.41-multiplatform.dusk**.
 
 ## 0.4.40 persistent access and arena markers
 
