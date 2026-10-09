@@ -1,4 +1,5 @@
 #include "model.hpp"
+#include "seed_data.hpp"
 #include <algorithm>
 #include <charconv>
 #include <sstream>
@@ -29,15 +30,15 @@ std::string escape(std::string_view s) {
     return out;
 }
 static std::string scalar(const Json& value) { return value.is_string() ? value.get<std::string>() : value.dump(); }
-std::string Model::checkDetails(const std::string& name) const {
+std::string Model::checkDetails(const std::string& name, bool advanced) const {
     const Json* selected = nullptr;
     for (const auto& check : catalogue.at("checks")) if (check.at("name") == name) { selected = &check; break; }
     if (!selected) return "<div>Check no longer available.</div>";
     auto label = [](Truth value) { return value == Truth::yes ? "OPEN" : value == Truth::no ? "LOCKED" : "UNKNOWN"; };
     const auto status = accessible.find(name);
     std::string state = obtained.contains(name) ? "DONE" : skipped.contains(name) ? "SKIPPED" : status == accessible.end() ? "UNKNOWN" : label(status->second);
-    std::string out = "<div class='tp-title'>" + escape(name) + "</div><div>" + state + " · " + escape(selected->value("group", "Other")) + "</div>";
-    out += "<div class='tp-note'>Reach one of the areas below and meet its requirements. 'and' means both; 'or' means either.</div>";
+    std::string out = "<div class='tp-title'>" + escape(name) + "</div><div class='tp-state " + state + "'>" + state + " | " + escape(selected->value("group", "Other")) + "</div>";
+    out += "<div class='tp-note'>Reach the area, then meet the local requirement. Alternate routes are listed separately.</div>";
     std::string expressions;
     for (const auto& route : selected->at("access")) {
         const std::string area = route.at("area"), requirement = route.at("requirement");
@@ -45,6 +46,7 @@ std::string Model::checkDetails(const std::string& name) const {
         Truth reach = Truth::no, result = Truth::no;
         if (found == reached.end()) reach = result = Truth::unknown;
         else for (int f=0; f<5; ++f) { reach=either(reach,found->second[f]); result=either(result,both(found->second[f],evaluate(requirement,f))); }
+        if(shuffled && !entrancesComplete && reach==Truth::no) reach=result=Truth::unknown;
         out += "<div class='tp-group'>" + escape(area) + " — " + label(result) + "</div><div>Area access: " + label(reach) + "</div><div>Local requirement: " + (requirement=="Nothing" ? std::string("No additional items required.") : escape(words(requirement))) + "</div>";
         expressions += " " + words(requirement);
         if (reach != Truth::yes) out += "<div class='tp-note'>" + std::string(reach==Truth::no ? "You cannot currently reach this area with the tracked inventory and seed settings." : "The tracker cannot yet confirm access to this area.") + "</div>";
@@ -58,18 +60,28 @@ std::string Model::checkDetails(const std::string& name) const {
             if (shown.size()>=48 || shown.contains(macro) || expressions.find(words(macro))==std::string::npos) continue;
             shown.insert(macro); added=true;
             const auto definition=words(scalar(value));
-            out += "<div class='tp-group'>" + escape(words(macro)) + "</div><div>" + escape(definition) + "</div>";
+            if(advanced) out += "<div class='tp-group'>" + escape(words(macro)) + "</div><div>" + escape(definition) + "</div>";
             expressions += " " + definition;
         }
+        // Persistent local actions (clawshot first, transform afterward) are
+        // events rather than macros, but their equipment still belongs here.
+        for(const auto& area:catalogue.at("areas")) if(area.contains("Events") && area.at("Events").is_object())
+            for(const auto& [event,value]:area.at("Events").items()) {
+                if(shown.size()>=48 || shown.contains(event) || expressions.find(words(event))==std::string::npos) continue;
+                shown.insert(event); added=true;
+                const auto definition=words(scalar(value)); expressions+=" "+definition;
+                if(advanced) out+="<div class='tp-group'>"+escape(words(event))+"</div><div>"+escape(definition)+"</div>";
+            }
         if (!added) break;
     }
-    out += "<div class='tp-group'>Relevant seed settings and inventory</div>";
-    for (const auto& [key,value] : settings.items()) if (expressions.find(key)!=std::string::npos)
-        out += "<div>"+escape(key)+": "+escape(scalar(value))+"</div>";
+    std::string relevant;
+    for (const auto& [key,value] : settings.items()) if (advanced && expressions.find(key)!=std::string::npos)
+        relevant += "<div>"+escape(key)+": "+escape(scalar(value))+"</div>";
     for (const auto& [key,value] : inventory) if (expressions.find(key)!=std::string::npos)
-        out += "<div>"+escape(key)+": "+(value<0?std::string("unknown"):std::to_string(value))+"</div>";
+        relevant += "<div>"+escape(key)+": <span class='"+(value<0?std::string("UNKNOWN"):value==0?std::string("LOCKED"):std::string("OPEN"))+"'>"+(value<0?std::string("unknown"):std::to_string(value))+"</span></div>";
+    if(!relevant.empty()) out+="<div class='tp-group'>"+std::string(advanced?"Relevant items and settings":"Your relevant items")+"</div>"+relevant;
     if (settings.value("Logic Rules",std::string())=="No Logic") out += "<div>No Logic is enabled: the tracker does not lock checks by these requirements.</div>";
-    if (shuffled) out += "<div>Entrance shuffle is enabled. These routes describe vanilla connections; shuffled routes are not evaluated.</div>";
+    if (shuffled) out += entrancesComplete ? "<div class='tp-note'>Access uses this seed's shuffled entrance routes.</div>" : "<div class='tp-note'>Entrance data is incomplete. Keep the matching spoiler log and seed.dat together to confirm routes.</div>";
     return out;
 }
 void Model::load(const Json& data) {
@@ -114,6 +126,14 @@ void Model::load(const Json& data) {
     exteriorCheckStages.clear();
 }
 void Model::loadSeed(const std::string& text) {
+    Model next=*this;
+    next.applySeedData(text);
+    *this=std::move(next);
+}
+void Model::loadNativeEntrances(const std::string& text) {
+    Model next=*this; resolveNativeEntrances(next,text); *this=std::move(next);
+}
+void Model::applySeedData(const std::string& text) {
     Json nextSettings = Json::object(), nextEntrances = Json::object();
     std::string nextSeed;
     bool complete = false;
@@ -126,23 +146,8 @@ void Model::loadSeed(const std::string& text) {
         nextSeed = parsed.at("seed").get<std::string>();
         complete = parsed.value("entrances_complete", false);
     } else {
-        // Dusklight anti-spoiler logs contain a flat scalar Settings section.
-        // Deliberately do not interpret item placements or arbitrary YAML tags.
-        bool inSettings = false;
-        std::istringstream input(text);
-        std::string line;
-        while (std::getline(input, line)) {
-            if (line.starts_with("Hash: ")) nextSeed = trim(line.substr(6));
-            if (trim(line) == "# Settings") { inSettings = true; continue; }
-            if (inSettings && line.starts_with("# ")) break;
-            if (!inSettings || line.empty() || line[0] == ' ' || line[0] == '#' || line[0] == '-') continue;
-            auto colon = line.find(": ");
-            if (colon == std::string::npos) continue;
-            auto value = trim(line.substr(colon + 2));
-            if (value.size() > 1 && value.front() == '"' && value.back() == '"')
-                value = Json::parse(value).get<std::string>();
-            nextSettings[trim(line.substr(0, colon))] = value;
-        }
+        const auto parsed=readSeedLog(text);
+        nextSeed=parsed.seed; nextSettings=parsed.settings;
     }
     if (nextSeed.empty() || !nextSettings.is_object() || !nextSettings.contains("Logic Rules") || !nextEntrances.is_object())
         throw std::runtime_error("Choose a Dusklight seed log or TPTracker seed JSON");
@@ -157,18 +162,55 @@ void Model::loadSeed(const std::string& text) {
     for (const auto& [key, value] : nextEntrances.items())
         if (!exitNames.contains(key) || !value.is_string() || !areaNames.contains(value.get<std::string>()))
             throw std::runtime_error("Entrance destination is not a known logical area");
+    if(seed!=nextSeed) visitedEntrances.clear();
     seed = nextSeed;
     settings = std::move(nextSettings);
     entrances = std::move(nextEntrances);
+    itemPlacements.clear(); startingItems.clear();
     seedLoaded = true;
-    entrancesComplete = complete && !entrances.empty();
     shuffled = false;
     for (const auto& [key, value] : settings.items())
         if (key.starts_with("Randomize ") && (key.find("Entrances") != std::string::npos || key == "Randomize Starting Spawn") && scalar(value) != "Off")
             shuffled = true;
+    const auto parsed=readSeedLog(text);
+    for(const auto& [check,item]:parsed.placements) {
+        auto found=aliases.find(check);
+        if(found!=aliases.end()) itemPlacements[found->second]=item;
+    }
+    startingItems=parsed.starting;
+    resolveSeedEntrances(*this,parsed.connections);
+    // Legacy JSON can provide logical destinations without native endpoints.
+    // It can solve the graph but cannot prove a physical entrance discovery.
+    if(parsed.connections.empty() && complete && !entrances.empty()) entrancesComplete=true;
+
+}
+std::string Model::entranceDestination(const std::string& parent,const std::string& vanilla) const {
+    const auto key=parent+" -> "+vanilla;
+    if(auto found=entrances.find(key); found!=entrances.end()) return found->get<std::string>();
+    return shuffledEdges.contains(key) ? std::string{} : vanilla;
+}
+std::string Model::itemHistory(const std::string& name) const {
+    std::string out="<div class='tp-title'>"+escape(name)+"</div>";
+    auto owned=inventory.find(name);
+    if(owned==inventory.end() || owned->second<=0)
+        return out+"<div>Not obtained. Its location stays hidden.</div>";
+    out+="<div>Obtained: "+std::to_string(owned->second)+" / "+std::to_string(inventoryMaximum(name))+"</div>";
+    out+="<div class='tp-group'>Collected from</div>";
+    bool shown=false;
+    if(auto start=startingItems.find(name); start!=startingItems.end() && start->second>0) {
+        out+="<div>Starting inventory ("+std::to_string(start->second)+")</div>"; shown=true;
+    }
+    for(const auto& check:obtained) {
+        auto placement=itemPlacements.find(check);
+        if(placement==itemPlacements.end() || placement->second!=name) continue;
+        out+="<div>"+escape(check)+"</div>"; shown=true;
+    }
+    if(!shown) out+="<div>Source not recorded. Load this save's spoiler log to match completed checks to rewards.</div>";
+    out+="<div class='tp-note'>Only completed checks are listed. Uncollected copies and upgrades stay hidden.</div>";
+    return out;
 }
 void Model::resetSave() {
-    skipped.clear(); mapHidden.clear();
+    skipped.clear(); mapHidden.clear(); itemPlacements.clear(); startingItems.clear(); entranceTargets.clear(); entranceCandidates.clear(); shuffledEdges.clear(); visitedEntrances.clear();
     inventory.clear(); countedItems.clear(); obtained.clear(); accessible.clear(); events.clear(); reached.clear();
     seed.clear(); settings = Json::object(); entrances = Json::object(); seedLoaded = false; shuffled = false; entrancesComplete = false;
     stage.clear(); room = -1; layer = -1;
@@ -389,7 +431,7 @@ void Model::solve() {
         for (auto& [name, value] : accessible) value = Truth::yes;
         return;
     }
-    // Use vanilla connections for all seeds, as requested by the tracker user.
+    // Seed-specific connections retain the source requirement and destination form rules.
     std::map<std::string, Truth> twilightCleared;
     for (const auto& area : catalogue.at("areas")) {
         auto name = area.at("Name").get<std::string>();
@@ -433,7 +475,8 @@ void Model::solve() {
                     for (const auto& [event, requirement] : area.at("Events").items())
                         promote(events[event], both(reach, evaluate(scalar(requirement), f)));
                 if (area.contains("Exits") && area.at("Exits").is_object())
-                    for (const auto& [exit, requirement] : area.at("Exits").items()) {
+                    for (const auto& [vanilla, requirement] : area.at("Exits").items()) {
+                        const auto exit=entranceDestination(name,vanilla);
                         if (!reached.contains(exit)) continue;
                         auto cleared = twilightCleared.at(exit);
                         auto access = both(reach, evaluate(scalar(requirement), f));
@@ -446,7 +489,8 @@ void Model::solve() {
             // The upstream search also tests the twilight form when entering an
             // uncleared province, even from a reachable human/wolf parent area.
             if (area.contains("Exits") && area.at("Exits").is_object())
-                for (const auto& [exit, requirement] : area.at("Exits").items()) {
+                for (const auto& [vanilla, requirement] : area.at("Exits").items()) {
+                    const auto exit=entranceDestination(name,vanilla);
                     if (!reached.contains(exit) || twilightCleared.at(exit) == Truth::yes) continue;
                     auto access = both(anyForm, evaluate(scalar(requirement), 4));
                     promote(reached.at(exit)[4], both(access, twilightCleared.at(exit) == Truth::no ? Truth::yes : Truth::unknown));
@@ -469,7 +513,7 @@ void Model::solve() {
             auto owned=inventory.find(bug);
             result=obtained.contains(checkName) ? Truth::no : owned==inventory.end() || owned->second<0 ? Truth::unknown : truth(owned->second>0);
         }
-        accessible[checkName] = check.at("access").empty() ? Truth::unknown : result;
+        accessible[checkName] = check.at("access").empty() || (shuffled && !entrancesComplete && result==Truth::no) ? Truth::unknown : result;
     }
 }
 }

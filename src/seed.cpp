@@ -60,6 +60,15 @@ bool backupSelectedCard(const std::filesystem::path& destination, std::string& e
         return true;
     } catch (const std::exception& e) { error = e.what(); return false; }
 }
+bool loadSiblingEntrances(Model& model, const std::filesystem::path& logPath, std::string& error) {
+    error.clear();
+    if(!model.shuffled || logPath.parent_path().filename()!=std::filesystem::u8path(model.seed)) return false;
+    try {
+        const auto native=logPath.parent_path()/"seed.dat";
+        if(!std::filesystem::exists(native)) return false;
+        model.loadNativeEntrances(read(native)); return true;
+    } catch(const std::exception& e) { error=e.what(); return false; }
+}
 bool loadSelectedSeed(Model& model, const std::filesystem::path& dataRoot, std::string& error) {
     try {
         const int slot = dComIfGs_getDataNum();
@@ -89,12 +98,13 @@ bool loadSelectedSeed(Model& model, const std::filesystem::path& dataRoot, std::
         auto seedData = read(folder / "seed.dat");
         if (!seedData.starts_with("formatVersion: 3")) throw std::runtime_error("Unsupported seed.dat version");
         Model candidate = model;
-        // Both logs contain the same settings. Read only that section; item
-        // placements must never substitute for the player's actual inventory.
-        auto log = folder / (hash + " Anti-Spoiler Log.txt");
-        if (!std::filesystem::exists(log)) log = folder / (hash + " Spoiler Log.txt");
+        // Full logs supply routes and retrospective item history. Inventory and
+        // completion always come from the live save, never from placements.
+        auto log = folder / (hash + " Spoiler Log.txt");
+        if (!std::filesystem::exists(log)) log = folder / (hash + " Anti-Spoiler Log.txt");
         candidate.loadSeed(read(log));
         if (candidate.seed != hash) throw std::runtime_error("Seed log does not match selected save");
+        if(candidate.shuffled) candidate.loadNativeEntrances(seedData);
         model = std::move(candidate);
         return true;
     } catch (const std::exception& e) { error = e.what(); return false; }

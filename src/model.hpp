@@ -29,6 +29,10 @@ struct Model {
     Json catalogue;
     Json settings = Json::object();
     Json entrances = Json::object();
+    std::map<std::string,std::string> itemPlacements, entranceTargets;
+    std::map<std::string,int> startingItems;
+    std::map<std::string,std::set<std::string>> entranceCandidates;
+    std::set<std::string> shuffledEdges, visitedEntrances;
     std::string seed;
     std::string stage;
     int room = -1;
@@ -51,6 +55,8 @@ struct Model {
     void load(const Json& data);
     void loadExteriorChecks(const Json& positions);
     void loadSeed(const std::string& text);
+    void applySeedData(const std::string& text);
+    void loadNativeEntrances(const std::string& text);
     void resetSave();
     bool give(const std::string& name);
     bool toggleSkipped(const std::string& name);
@@ -64,7 +70,9 @@ struct Model {
     void applyLogicResult(LogicResult result) {
         accessible=std::move(result.accessible); events=std::move(result.events); reached=std::move(result.reached);
     }
-    std::string checkDetails(const std::string& name) const;
+    std::string checkDetails(const std::string& name, bool advanced = true) const;
+    std::string itemHistory(const std::string& name) const;
+    std::string entranceDestination(const std::string& parent, const std::string& vanilla) const;
     Truth evaluate(std::string expression, int form = 0, std::set<std::string> stack = {}) const;
 };
 }

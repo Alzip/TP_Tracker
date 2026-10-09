@@ -1,5 +1,6 @@
 #include "inventory_adapters.hpp"
 #include "model.hpp"
+#include "entrance_journal.hpp"
 #include "notebook.hpp"
 #include "check_guides.hpp"
 #include "seed.hpp"
@@ -43,9 +44,13 @@ namespace {
 using tracker::Json;
 using tracker::Truth;
 tracker::Model model;
+tracker::EntranceJourney entranceJourney;
 tracker::CheckGuides checkGuides;
 UiWindowHandle window = 0;
-UiWindowHandle detailWindow = 0;
+UiWindowHandle detailWindow = 0, itemWindow=0;
+std::string selectedItem;
+bool detailAdvanced=false;
+UiElementHandle detailToggle=0;
 bool mapDetail=false, mapDetailClosing=false;
 UiElementHandle detailText = 0, detailButton = 0;
 std::string selectedCheck;
@@ -78,6 +83,8 @@ bool shortcutHeld = true;
 int64_t previousKeyboard = -1, previousController = -1;
 UiElementHandle inventoryElement = 0, checksElement = 0;
 std::vector<UiElementHandle> inventorySections, inventoryBlocks;
+std::vector<std::string> inventoryNames;
+UiElementHandle inventoryHeader=0;
 UiElementHandle settingsStatus = 0, countElement = 0;
 constexpr size_t pageSize = 10;
 size_t checkPage = 0, totalPages = 1, visibleRows = 0;
@@ -123,7 +130,7 @@ uint64_t logicGeneration = 0, runningGeneration = 0;
 bool logicRequested = false;
 std::future<tracker::LogicResult> logicJob;
 std::string search;
-std::string status = "Select this save's anti-spoiler log in F1 > Mods > TPTracker.";
+std::string status = "Select this save's spoiler log in F1 > Mods > TPTracker.";
 std::string lastChecks;
 std::set<std::string> journal;
 std::chrono::steady_clock::time_point nextScan{};
@@ -162,11 +169,18 @@ window content pane .tp-scroll-anchor:active {
 .tp-item { text-align: center; font-size: 13dp; min-height: 92dp; }
 .tp-item.missing img { opacity: 0.35; }
 .tp-item-count { display: block; color: #d2b866; margin-top: 4dp; }
+.tp-inventory-row { align-items: stretch; gap: 5dp; }
+.tp-inventory-row .tp-item { position: relative; display: block; flex: 1 1 0dp; width: 0dp; margin: 2dp 0dp; }
+.tp-item-art { pointer-events: none; display: block; width: 100%; }
+window content pane .tp-item-action { box-sizing: border-box; position: absolute; left: 0dp; top: 0dp; width: 100%; height: 100%; min-height: 0dp; margin: 0dp; padding: 0dp; color: transparent; background-color: transparent; border: 2dp transparent; box-shadow: none; }
+window content pane .tp-item-action:hover, window content pane .tp-item-action:focus, window content pane .tp-item-action:focus-visible, window content pane .tp-item-action:selected, window content pane .tp-item-action:active { color: transparent; background-color: transparent; border: 2dp #dcc44b; }
 )";
 
 std::string journalText() {
     Json value = {{"version", 1}, {"seed", model.seed}, {"settings", model.settings},
-                  {"entrances", model.entrances}, {"entrances_complete", model.entrancesComplete}, {"checks", journal}};
+                  {"checks", journal}};
+    value["entrance_visits"]=Json::array();
+    for(const auto& id:model.visitedEntrances) value["entrance_visits"].push_back(tracker::entranceKey(id));
     value["skipped"]=model.skipped;
     value["hint_notes"]=hintNotes;
     value["manual_notes"]=manualNotes;
@@ -203,7 +217,8 @@ ModResult updateDetail(ModContext*,void*,ModError*) {
         svc_ui->control_set_label(mod_ctx,detailButton,skipped ? "Skipped" : "Skip this check");
         svc_ui->control_set_tooltip(mod_ctx,detailButton,skipped ? "Undo skipped check?" : "Hide this check from the maps until restored.");
     }
-    const auto markup=model.checkDetails(selectedCheck);
+    if(detailToggle) svc_ui->control_set_label(mod_ctx,detailToggle,detailAdvanced ? "Hide full logic" : "Show full logic");
+    const auto markup=model.checkDetails(selectedCheck,detailAdvanced);
     if(markup==detailMarkup) return MOD_OK;
     detailMarkup=markup;
     // Each generated div gets a small focus anchor. The SDK scrolls focused
@@ -240,8 +255,16 @@ ModResult updateDetail(ModContext*,void*,ModError*) {
     return MOD_OK;
 }
 ModResult buildDetail(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
-    detailText=left;
-    auto result=updateDetail(nullptr,nullptr,nullptr);
+    UiRowDesc sections=UI_ROW_DESC_INIT;
+    auto result=svc_ui->pane_add_row(mod_ctx,left,&sections,&detailText);
+    if(result!=MOD_OK) return result;
+    svc_ui->elem_set_class(mod_ctx,detailText,"tp-detail-sections",true);
+    result=updateDetail(nullptr,nullptr,nullptr);
+    if(result!=MOD_OK) return result;
+    UiControlDesc advanced=UI_CONTROL_DESC_INIT;
+    advanced.kind=UI_CONTROL_BUTTON; advanced.label="Show full logic";
+    advanced.on_pressed=[](ModContext*,void*) { detailAdvanced=!detailAdvanced; ++revision; };
+    result=svc_ui->pane_add_control(mod_ctx,left,&advanced,&detailToggle);
     if(result!=MOD_OK) return result;
     UiControlDesc button=UI_CONTROL_DESC_INIT;
     button.kind=UI_CONTROL_BUTTON; button.label="Skip this check";
@@ -268,16 +291,19 @@ ModResult buildDetail(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
     detailRevision=0;
     return updateDetail(nullptr,nullptr,nullptr);
 }
-void detailClosed(ModContext*,UiWindowHandle,void*) { mapDetail=mapDetailClosing=false; detailWindow=0; detailText=detailButton=0; selectedCheck.clear(); detailMarkup.clear(); detailRevision=0; detailSections.clear(); detailAnchors.clear(); detailBlocks.clear(); detailSectionCount=0; detailScrollRow=0; detailNavigation={}; stickNavigation={}; }
+void detailClosed(ModContext*,UiWindowHandle,void*) { mapDetail=mapDetailClosing=false; detailWindow=0; detailText=detailButton=detailToggle=0; detailAdvanced=false; selectedCheck.clear(); detailMarkup.clear(); detailRevision=0; detailSections.clear(); detailAnchors.clear(); detailBlocks.clear(); detailSectionCount=0; detailScrollRow=0; detailNavigation={}; stickNavigation={}; }
 bool openCheckDetails(const std::string& name) {
     if(detailWindow || !model.aliases.contains(name)) return false;
     selectedCheck=name;
     UiTabDesc tab=UI_TAB_DESC_INIT; tab.title="Check details"; tab.build=buildDetail; tab.update=updateDetail;
     UiWindowDesc desc=UI_WINDOW_DESC_INIT; desc.tabs=&tab; desc.tab_count=1; desc.on_closed=detailClosed;
     desc.rcss=R"(
-window { max-width: 1000dp; max-height: 800dp; }
+window { max-width: 1060dp; max-height: 800dp; }
+.tp-state { padding: 8dp; background-color: #302d20; border-radius: 5dp; }
+.OPEN { color: #70ed86; } .LOCKED { color: #ff7c76; } .UNKNOWN { color: #e5c977; }
+.DONE { color: #999b95; } .SKIPPED { color: #cd91f4; }
 window content pane:first-child { flex: 1; }
-window content pane:last-child { flex: 0 0 32%; }
+window content pane:last-child { flex: 0 0 38%; background-color: #211f17; }
 window content pane { font-size: 17dp; }
 .tp-detail-sections { display: block; }
 .tp-scroll-anchor { display: block; height: 1dp; min-height: 1dp; padding: 0dp; margin: 0dp; border-width: 0dp; opacity: 0; }
@@ -290,10 +316,10 @@ window content pane .tp-scroll-anchor:selected,
 window content pane .tp-scroll-anchor:active {
     opacity: 0; background-color: transparent; box-shadow: none; transition: none;
 }
-window content pane div { display: block; margin-bottom: 8dp; }
+window content pane div { display: block; margin-bottom: 4dp; }
 .tp-title { display: block; font-size: 24dp; font-weight: bold; color: #e4d196; margin-bottom: 14dp; }
-.tp-group { display: block; font-size: 20dp; color: #e4d196; margin-top: 18dp; margin-bottom: 10dp; padding-bottom: 6dp; border-bottom: 1dp #9b8955; }
-.tp-note { display: block; font-size: 15dp; color: #c5baa0; margin-top: 8dp; margin-bottom: 14dp; }
+.tp-group { display: block; font-size: 17dp; color: #e4d196; margin-top: 12dp; margin-bottom: 6dp; padding-bottom: 4dp; border-bottom: 1dp #9b8955; }
+.tp-note { display: block; font-size: 14dp; color: #c5baa0; margin-top: 6dp; margin-bottom: 8dp; }
 )";
     if(svc_ui->window_push(mod_ctx,&desc,&detailWindow)!=MOD_OK) detailClosed(nullptr,0,nullptr);
     return detailWindow!=0;
@@ -329,9 +355,10 @@ void backupCard() {
         mods::log::warn("TPTracker: card backup failed: {}",error);
 }
 void restore(bool autoSeed = true) {
+    if(itemWindow) svc_ui->window_close(mod_ctx,itemWindow);
     if(detailWindow) svc_ui->window_close(mod_ctx,detailWindow);
     backupCard();
-    model.resetSave();
+    model.resetSave(); entranceJourney.reset();
     ++logicGeneration;
     ++revision;
     journal.clear();
@@ -347,6 +374,11 @@ void restore(bool autoSeed = true) {
                 for (const auto& name : value.at("checks"))
                     if (model.aliases.contains(name.get<std::string>())) journal.insert(name.get<std::string>());
                 model.obtained = journal;
+                for(const auto& key:value.value("entrance_visits",Json::array()))
+                    for(const auto& edge:model.catalogue.at("entrance_edges")) {
+                        const auto id=edge.at("id").get<std::string>();
+                        if(key==tracker::entranceKey(id)) model.visitedEntrances.insert(id);
+                    }
                 for (const auto& name : value.value("skipped",Json::array())) {
                     auto key=name.get<std::string>();
                     if (model.aliases.contains(key) && !model.obtained.contains(key)) model.skipped.insert(key);
@@ -370,7 +402,7 @@ void restore(bool autoSeed = true) {
         status = "Seed: " + model.seed + " (selected save)";
     } else {
         if (!seedError.empty()) mods::log::warn("TPTracker: selected save seed metadata unavailable: {}. Preserve the card, its .mods folder and the matching randomizer seed folder together.",seedError);
-        status = model.seedLoaded ? "Seed: " + model.seed : "Load this save's anti-spoiler log in F1. Automatic seed lookup needs a saved randomizer slot.";
+        status = model.seedLoaded ? "Seed: " + model.seed : "Load this save's spoiler log in F1. Automatic seed lookup needs a saved randomizer slot.";
     }
     dirty = true;
     nextScan = {};
@@ -561,6 +593,26 @@ void onGive(ModContext*, const ItemGiveInfo* info, void*) {
 }
 // Hints never force a logic solve: only a changed snapshot does that. A bool coalesces
 // any number of repeated switch assertions between the bounded snapshot passes.
+tracker::EntranceSpawn entranceArgs(void* args) {
+    const char* stage=mods::arg<const char*>(args,0);
+    return {stage ? stage : "",mods::arg<s8>(args,2),mods::arg<s16>(args,1),mods::arg<s8>(args,3)};
+}
+HookAction beforeEntrance(ModContext*,void* args,void*,void*) {
+    entranceJourney.reset();
+    const char* current=dComIfGp_getStartStageName();
+    if(current && dComIfGp_getPlayer(0))
+        entranceJourney.begin(model,entranceArgs(args),current,dComIfGp_roomControl_getStayNo());
+    return HOOK_CONTINUE;
+}
+void afterEntrance(ModContext*,void* args,void*,void*) {
+    entranceJourney.validateRedirect(model,entranceArgs(args));
+}
+void arrivedEntrance(ModContext*,void*,void*,void*) {
+    const char* stage=dComIfGp_getStartStageName();
+    if(entranceJourney.arrive(model,{stage?stage:"",dComIfGp_getStartStageRoomNo(),dComIfGp_getStartStagePoint(),dComIfGp_getStartStageLayer()})) {
+        notebookDirty=true; ++revision;
+    }
+}
 void onEngineChanged(ModContext*, void*, void*, void*) { engineDirty = true; }
 
 void onDialogueDraw(ModContext*, void* args, void*, void*) {
@@ -598,68 +650,93 @@ void onDialogueDraw(ModContext*, void* args, void*, void*) {
     notebookDirty=true; ++revision;
 }
 
-std::vector<std::string> inventoryRml() {
-    std::vector<std::string> rows;
-    std::string rml = "<div class='tp-title'>TPTracker</div><div class='tp-note'>" + tracker::escape(status) + "</div>";
-    rml += "<div class='tp-note'>" + tracker::escape(model.stage.empty() ? "Waiting for gameplay" : model.stage) +
-           " / room " + std::to_string(model.room) + "</div>";
-    for (const char* section : {"Progression","Collectibles","Keys","Quest items"}) {
-      rml+="<div class='tp-group'>"+std::string(section)+"</div>";
-      int column=0;
-      for (const auto& item : model.catalogue.at("items")) {
-        auto name = item.at("Name").get<std::string>();
-        if (name.ends_with("Portal") || (name.find("Bottle") != std::string::npos && name != "Empty Bottle")) continue;
-        if (!inventoryArt.contains(name) || inventoryArt.at(name).at("section")!=section) continue;
-        const auto& art=inventoryArt.at(name);
-        auto found = model.inventory.find(name);
-        int count = found == model.inventory.end() ? -1 : found->second;
-        if(column==0) rml+="<div class='tp-grid'>";
-        rml += "<div class='tp-item" + std::string(count > 0 ? " owned" : " missing") + "'>";
-        rml += "<img src='mod://com.mikey022.tp_randomizer_tracker/res/"+tracker::escape(art.at("icon").get<std::string>())+"?rev=0.4.24'/>";
-        rml += tracker::escape(name);
-        rml += "<span class='tp-item-count'>" + (count<0 ? std::string("?") : std::to_string(count)) + " / " + std::to_string(model.inventoryMaximum(name)) + "</span>";
-        rml += "</div>";
-        if(++column==2) { rml+="</div>"; rows.push_back(std::move(rml)); rml.clear(); column=0; }
-      }
-      if(column) { rml+="</div>"; rows.push_back(std::move(rml)); rml.clear(); }
+ModResult addReadableBlocks(UiElementHandle pane,const std::string& markup) {
+    for(size_t start=0;start<markup.size();) {
+        auto end=markup.find("</div>",start); end=end==std::string::npos ? markup.size() : end+6;
+        UiElementHandle row=0,anchor=0; UiRowDesc desc=UI_ROW_DESC_INIT;
+        auto result=svc_ui->pane_add_row(mod_ctx,pane,&desc,&row); if(result!=MOD_OK) return result;
+        svc_ui->elem_set_class(mod_ctx,row,"tp-detail-sections",true);
+        UiControlDesc control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_BUTTON; control.label="";
+        control.on_pressed=[](ModContext*,void*) {};
+        result=svc_ui->pane_add_control(mod_ctx,row,&control,&anchor); if(result!=MOD_OK) return result;
+        svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
+        result=svc_ui->pane_add_rml(mod_ctx,row,markup.substr(start,end-start).c_str(),nullptr); if(result!=MOD_OK) return result;
+        start=end;
     }
-    rows.push_back(rml + "<div class='tp-note'>Current / maximum. Progressive items show upgrade tiers; small keys include keys already used. ? = count unavailable. Collectibles, quest items and keys can also be required for progression. Artwork: Henriko Magnifico, game and randomizer item icons.</div>");
-    return rows;
+    return MOD_OK;
+}
+ModResult buildItemHistory(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
+    auto result=addReadableBlocks(right,model.itemHistory(selectedItem));
+    if(result!=MOD_OK) return result;
+    return svc_ui->pane_add_rml(mod_ctx,left,"<div class='tp-title'>Item history</div><div class='tp-note'>Locations are revealed only for rewards you have collected. Future upgrades stay hidden. B or Escape returns to the tracker.</div>",nullptr);
+}
+void inspectItem(ModContext*,void* data) {
+    const auto index=reinterpret_cast<uintptr_t>(data);
+    if(itemWindow || index>=inventoryNames.size()) return;
+    selectedItem=inventoryNames[index];
+    UiTabDesc tab=UI_TAB_DESC_INIT; tab.title="Item history"; tab.build=buildItemHistory;
+    UiWindowDesc desc=UI_WINDOW_DESC_INIT; desc.tabs=&tab; desc.tab_count=1; desc.rcss=styles;
+    desc.on_closed=[](ModContext*,UiWindowHandle,void*) { itemWindow=0; selectedItem.clear(); };
+    if(svc_ui->window_push(mod_ctx,&desc,&itemWindow)!=MOD_OK) itemWindow=0;
 }
 ModResult renderInventory() {
-    const auto rows=inventoryRml();
-    for(size_t i=0;i<rows.size();++i) {
-        if(i==inventorySections.size()) {
-            UiRowDesc row=UI_ROW_DESC_INIT;
-            UiElementHandle block=0,anchor=0,text=0;
-            auto result=svc_ui->pane_add_row(mod_ctx,inventoryElement,&row,&block);
-            if(result!=MOD_OK) return result;
-            svc_ui->elem_set_class(mod_ctx,block,"tp-detail-sections",true);
-            UiControlDesc control=UI_CONTROL_DESC_INIT;
-            control.kind=UI_CONTROL_BUTTON; control.label=""; control.on_pressed=[](ModContext*,void*) {};
-            result=svc_ui->pane_add_control(mod_ctx,block,&control,&anchor);
-            if(result!=MOD_OK) return result;
-            svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
-            result=svc_ui->pane_add_rml(mod_ctx,block,"",&text);
-            if(result!=MOD_OK) return result;
-            inventorySections.push_back(text); inventoryBlocks.push_back(block);
+    std::string header="<div class='tp-title'>TPTracker</div><div class='tp-note'>"+tracker::escape(status)+"</div>";
+    header+="<div class='tp-note'>Select an item to see its collected sources.</div>";
+    if(inventorySections.empty()) {
+        inventoryNames.clear();
+        auto result=svc_ui->pane_add_rml(mod_ctx,inventoryElement,header.c_str(),&inventoryHeader);
+        if(result!=MOD_OK) return result;
+        for(const char* section:{"Progression","Collectibles","Keys","Quest items"}) {
+            auto title="<div class='tp-group'>"+std::string(section)+"</div>";
+            result=svc_ui->pane_add_rml(mod_ctx,inventoryElement,title.c_str(),nullptr); if(result!=MOD_OK) return result;
+            int column=0; UiElementHandle row=0;
+            for(const auto& item:model.catalogue.at("items")) {
+                const auto name=item.at("Name").get<std::string>();
+                if(name.ends_with("Portal") || (name.find("Bottle")!=std::string::npos && name!="Empty Bottle")) continue;
+                if(!inventoryArt.contains(name) || inventoryArt.at(name).at("section")!=section) continue;
+                UiRowDesc desc=UI_ROW_DESC_INIT;
+                if(column==0) {
+                    result=svc_ui->pane_add_row(mod_ctx,inventoryElement,&desc,&row); if(result!=MOD_OK) return result;
+                    svc_ui->elem_set_class(mod_ctx,row,"tp-inventory-row",true);
+                }
+                UiElementHandle tile=0,text=0,button=0;
+                result=svc_ui->pane_add_row(mod_ctx,row,&desc,&tile); if(result!=MOD_OK) return result;
+                svc_ui->elem_set_class(mod_ctx,tile,"tp-item",true);
+                result=svc_ui->pane_add_rml(mod_ctx,tile,"",&text); if(result!=MOD_OK) return result;
+                svc_ui->elem_set_class(mod_ctx,text,"tp-item-art",true);
+                UiControlDesc action=UI_CONTROL_DESC_INIT; action.kind=UI_CONTROL_BUTTON; action.label=name.c_str();
+                action.on_pressed=inspectItem; action.user_data=reinterpret_cast<void*>(inventoryNames.size());
+                result=svc_ui->pane_add_control(mod_ctx,tile,&action,&button); if(result!=MOD_OK) return result;
+                svc_ui->elem_set_class(mod_ctx,button,"tp-item-action",true);
+                svc_ui->control_set_tooltip(mod_ctx,button,"View collected sources");
+                inventoryNames.push_back(name); inventorySections.push_back(text); inventoryBlocks.push_back(tile);
+                column=(column+1)%2;
+            }
         }
-        svc_ui->elem_set_visible(mod_ctx,inventoryBlocks[i],true);
-        auto result=svc_ui->elem_set_rml(mod_ctx,inventorySections[i],rows[i].c_str());
+        result=svc_ui->pane_add_rml(mod_ctx,inventoryElement,"<div class='tp-note'>Current / maximum. Progressive items show upgrade tiers; small keys include keys already used. ? = count unavailable. Artwork: Henriko Magnifico, game and randomizer item icons.</div>",nullptr);
         if(result!=MOD_OK) return result;
     }
-    for(size_t i=rows.size();i<inventoryBlocks.size();++i) svc_ui->elem_set_visible(mod_ctx,inventoryBlocks[i],false);
+    svc_ui->elem_set_rml(mod_ctx,inventoryHeader,header.c_str());
+    for(size_t i=0;i<inventoryNames.size();++i) {
+        const auto& name=inventoryNames[i]; auto found=model.inventory.find(name);
+        const int count=found==model.inventory.end() ? -1 : found->second;
+        std::string rml="<img src='mod://com.mikey022.tp_randomizer_tracker/res/"+tracker::escape(inventoryArt.at(name).at("icon").get<std::string>())+"'/>";
+        rml+=tracker::escape(name)+"<span class='tp-item-count'>"+(count<0?std::string("?"):std::to_string(count))+" / "+std::to_string(model.inventoryMaximum(name))+"</span>";
+        svc_ui->elem_set_class(mod_ctx,inventoryBlocks[i],"owned",count>0);
+        svc_ui->elem_set_class(mod_ctx,inventoryBlocks[i],"missing",count<=0);
+        auto result=svc_ui->elem_set_rml(mod_ctx,inventorySections[i],rml.c_str()); if(result!=MOD_OK) return result;
+    }
     return MOD_OK;
 }
 std::string checksRml() {
     std::string rml = "<div class='tp-title'>" + std::string(allChecks ? "All Checks" : "Current Area") + "</div>";
     if (!allChecks && model.catalogue.contains("stage_labels"))
         rml += "<div class='tp-note'>" + tracker::escape(model.catalogue.at("stage_labels").value(model.stage, model.stage)) + "</div>";
-    rml += "<div class='tp-note'>OPEN / green Ãƒâ€šÃ‚Â· LOCKED / red Ãƒâ€šÃ‚Â· UNKNOWN / amber Ãƒâ€šÃ‚Â· DONE / gray Ãƒâ€šÃ‚Â· SKIPPED / purple</div>";
+    rml += "<div class='tp-note'>OPEN / green | LOCKED / red | UNKNOWN / amber | DONE / gray | SKIPPED / purple</div>";
     rml += "<div class='tp-note'>Select a check to view its requirements. Use Skip or Undo in its details window. Skipped checks are hidden on both maps.</div>";
     if (!model.seedLoaded) rml += "<div class='tp-note'>Load a seed log to evaluate logic.</div>";
     else if (logicRequested || logicJob.valid()) rml += "<div class='tp-note'>Updating reachability...</div>";
-    rml += "<div class='tp-note'>Vanilla entrance logic: shuffled connections are intentionally ignored.</div>";
+    if(model.shuffled) rml += model.entrancesComplete ? "<div class='tp-note'>Using this seed's shuffled entrances. Visited connections appear in Entrances.</div>" : "<div class='tp-note'>Entrance data is incomplete. Keep this save's spoiler log and seed.dat together; uncertain routes show UNKNOWN.</div>";
     rml += "<div class='tp-note'>Left stick or D-pad: up/down selects rows; left/right moves between the inventory and checks. Right stick: up/down selects checks; left/right changes page without resetting the row. Page buttons also work with mouse or controller.</div>";
     size_t shown = 0, done = 0, enabled = 0;
     struct Row { std::string name, group, css, label; };
@@ -749,7 +826,7 @@ void navigateStick() {
 }
 ModResult updateTab(ModContext*, void*, ModError*) {
     if (!inventoryElement || !checksElement) return MOD_OK;
-    if(!detailWindow) navigateStick();
+    if(!detailWindow && !itemWindow) navigateStick();
     if (renderedRevision == revision) return MOD_OK;
     const auto checks = checksRml();
     auto inventoryResult=renderInventory();
@@ -866,7 +943,7 @@ void deleteNote(ModContext*,void* data) {
 ModResult updateNotes(ModContext*,void*,ModError*) {
     if (!notesElement) return MOD_OK;
     int x=0,y=0;
-    if (tracker::readRightStick(x,y)) {
+    if (!itemWindow && tracker::readRightStick(x,y)) {
         const auto now=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
         const int direction=notesNavigation.sample(x,y,now);
         if(std::abs(notesNavigation.held)==2) {
@@ -950,12 +1027,71 @@ ModResult buildNotes(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHa
     notesElement=right;
     return result==MOD_OK ? updateNotes(mod_ctx,nullptr,nullptr) : result;
 }
+UiElementHandle entranceHeading=0;
+std::vector<UiElementHandle> entranceRows,entranceRowText;
+size_t entrancePage=0,entrancePageCount=1;
+bool entrancePreviousDisabled(ModContext*,void*) { return entrancePage==0; }
+bool entranceNextDisabled(ModContext*,void*) { return entrancePage+1>=entrancePageCount; }
+ModResult updateEntrances(ModContext*,void*,ModError*) {
+    if(renderedRevision==revision) return MOD_OK;
+    auto result=renderInventory(); if(result!=MOD_OK) return result;
+    std::vector<std::string> discovered;
+    for(const auto& edge:model.catalogue.at("entrance_edges")) {
+        const auto id=edge.at("id").get<std::string>();
+        if(!model.visitedEntrances.contains(id) || !model.entranceTargets.contains(id)) continue;
+        const auto* target=entranceJourney.endpoint(model,model.entranceTargets.at(id));
+        if(!target) continue;
+        const auto destination=target->at("target").get<std::string>();
+        const auto sourceLabel=model.settings.value("Decouple Double Door Entrances",Json("Off"))=="On" && !edge.at("couple").get<std::string>().empty() ? id : edge.at("label").get<std::string>();
+        discovered.push_back("<div class='tp-group'>"+tracker::escape(sourceLabel)+"</div><div>Leads to: "+tracker::escape(destination)+"</div>");
+    }
+    std::sort(discovered.begin(),discovered.end());
+    entrancePageCount=std::max(size_t(1),(discovered.size()+9)/10);
+    entrancePage=std::min(entrancePage,entrancePageCount-1);
+    std::string heading="<div class='tp-title'>Discovered entrances</div><div class='tp-note'>Connections appear after you use them. Save your game to keep this journal. Each direction is recorded separately.</div>";
+    heading+="<div>"+std::to_string(discovered.size())+" discovered | Page "+std::to_string(entrancePage+1)+" / "+std::to_string(entrancePageCount)+"</div>";
+    if(model.settings.value("Decouple Entrances",Json("Off"))=="On") heading+="<div class='tp-note'>Decoupled entrances: the return trip can lead somewhere else.</div>";
+    if(!model.entrancesComplete) heading+="<div class='tp-note'>Keep this save's spoiler log and seed.dat together to resolve all entrance connections.</div>";
+    if(discovered.empty()) heading+="<div class='tp-note'>No entrances recorded yet. Previously visited routes cannot be reconstructed from the spoiler log; use an entrance to record it.</div>";
+    svc_ui->elem_set_rml(mod_ctx,entranceHeading,heading.c_str());
+    for(size_t i=0;i<entranceRows.size();++i) {
+        const auto index=entrancePage*10+i; bool visible=index<discovered.size();
+        svc_ui->elem_set_visible(mod_ctx,entranceRows[i],visible);
+        if(visible) svc_ui->elem_set_rml(mod_ctx,entranceRowText[i],discovered[index].c_str());
+    }
+    renderedRevision=revision; return MOD_OK;
+}
+ModResult buildEntrances(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
+    notesTab=false; pageControl=checksElement=countElement=notesElement=0;
+    checkRows.clear(); headingRows.clear(); visibleNames.clear(); visibleRows=0;
+    inventoryElement=left; inventorySections.clear(); inventoryBlocks.clear();
+    entranceRows.clear(); entranceRowText.clear(); entrancePage=0; renderedRevision=0;
+    auto result=svc_ui->pane_add_rml(mod_ctx,right,"",&entranceHeading); if(result!=MOD_OK) return result;
+    for(int i=0;i<2;++i) {
+        UiControlDesc page=UI_CONTROL_DESC_INIT; page.kind=UI_CONTROL_BUTTON; page.label=i?"Next page":"Previous page";
+        page.user_data=reinterpret_cast<void*>(static_cast<uintptr_t>(i));
+        page.is_disabled=i?entranceNextDisabled:entrancePreviousDisabled;
+        page.on_pressed=[](ModContext*,void* data) { if(data) { if(entrancePage+1<entrancePageCount) ++entrancePage; } else if(entrancePage) --entrancePage; ++revision; };
+        result=svc_ui->pane_add_control(mod_ctx,right,&page,nullptr); if(result!=MOD_OK) return result;
+    }
+    for(int i=0;i<10;++i) {
+        UiElementHandle row=0,anchor=0,text=0; UiRowDesc desc=UI_ROW_DESC_INIT;
+        result=svc_ui->pane_add_row(mod_ctx,right,&desc,&row); if(result!=MOD_OK) return result;
+        svc_ui->elem_set_class(mod_ctx,row,"tp-detail-sections",true);
+        UiControlDesc control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_BUTTON; control.label=""; control.on_pressed=[](ModContext*,void*) {};
+        result=svc_ui->pane_add_control(mod_ctx,row,&control,&anchor); if(result!=MOD_OK) return result;
+        svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
+        result=svc_ui->pane_add_rml(mod_ctx,row,"",&text); if(result!=MOD_OK) return result;
+        entranceRows.push_back(row); entranceRowText.push_back(text);
+    }
+    return updateEntrances(nullptr,nullptr,nullptr);
+}
 void onClosed(ModContext*, UiWindowHandle, void*) { window = 0; inventoryElement = checksElement = notesElement = 0; notesTab=false; }
 void toggleGet(ModContext*, void*, UiControlValue* value) { value->bool_value = window != 0; }
 void toggleSet(ModContext*, void*, const UiControlValue* value) {
-    if (!value->bool_value && window) { if(detailWindow) svc_ui->window_close(mod_ctx,detailWindow); svc_ui->window_close(mod_ctx, window); return; }
+    if (!value->bool_value && window) { if(itemWindow) svc_ui->window_close(mod_ctx,itemWindow); if(detailWindow) svc_ui->window_close(mod_ctx,detailWindow); svc_ui->window_close(mod_ctx, window); return; }
     if (!value->bool_value || window) return;
-    UiTabDesc tabs[3] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
+    UiTabDesc tabs[4] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
     tabs[0].title = "Current Area";
     tabs[1].title = "All Checks";
     static int allTab;
@@ -963,7 +1099,8 @@ void toggleSet(ModContext*, void*, const UiControlValue* value) {
     tabs[1].user_data = &allTab;
     tabs[2].title="Notes"; tabs[2].build=buildNotes; tabs[2].update=updateNotes;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
-    desc.tabs = tabs; desc.tab_count = 3; desc.rcss = styles; desc.on_closed = onClosed;
+    tabs[3].title="Entrances"; tabs[3].build=buildEntrances; tabs[3].update=updateEntrances;
+    desc.tabs = tabs; desc.tab_count = model.shuffled ? 4 : 3; desc.rcss = styles; desc.on_closed = onClosed;
     auto result = svc_ui->window_push(mod_ctx, &desc, &window);
     if (result != MOD_OK) { window = 0; status = "Could not open tracker window."; mods::log::error("TPTracker: window_push failed"); }
 }
@@ -1038,14 +1175,20 @@ void filePicked(ModContext*, ModResult result, const char* const* locations, uin
     auto closed = svc_file->close(mod_ctx, stream);
     try {
         if (result != MOD_OK || closed != MOD_OK || read != size) throw std::runtime_error("Incomplete seed read");
-        model.loadSeed(content);
+        tracker::Model candidate=model;
+        candidate.loadSeed(content);
+        if(!model.seed.empty() && candidate.seed!=model.seed) throw std::runtime_error("Choose the spoiler log for the active save's seed.");
+        std::string nativeError;
+        if(!tracker::loadSiblingEntrances(candidate,std::filesystem::u8path(locations[0]),nativeError) && !nativeError.empty())
+            mods::log::warn("TPTracker: {}",nativeError);
+        model=std::move(candidate); entranceJourney.reset();
         status = "Seed: " + model.seed;
         persist(); dirty = true;
     } catch (const std::exception& e) { status = e.what(); mods::log::warn("TPTracker: {}", e.what()); }
 }
 void pickSeed(ModContext*, void*) {
     ++revision;
-    static const FileFilter filters[] = {{"Dusklight anti-spoiler log / TPTracker JSON", "txt;json"}};
+    static const FileFilter filters[] = {{"Dusklight spoiler log / TPTracker JSON", "txt;json"}};
     FilePickOptions options = FILE_PICK_OPTIONS_INIT;
     options.filters = filters; options.filter_count = 1;
     if (svc_file->pick_file(mod_ctx, &options, filePicked, nullptr) != MOD_OK) status = "Could not open the file picker.";
@@ -1134,6 +1277,13 @@ ModResult updateSettings(ModContext*, void*, ModError*) {
 }
 }
 
+#ifdef _MSVC_LANG
+#define TRACKER_NEXT_STAGE_SYMBOL "?dComIfGp_setNextStage@@YAXPEBDFCCMIHCFHH@Z"
+#else
+#define TRACKER_NEXT_STAGE_SYMBOL "_Z21dComIfGp_setNextStagePKcsaafjiasii"
+#endif
+DEFINE_HOOK_SYMBOL(TRACKER_NEXT_STAGE_SYMBOL, void(const char*,s16,s8,s8,f32,u32,int,s8,s16,int,int), TrackerEntranceRequest);
+DEFINE_HOOK(&dComIfGp_setStartStage, TrackerEntranceArrival);
 DEFINE_HOOK(&dSv_info_c::onSwitch, SwitchHook);
 DEFINE_HOOK(&dComIfGs_onTbox, ChestHook);
 DEFINE_HOOK(&dMsgObject_c::_draw, HintDialogueDraw);
@@ -1170,6 +1320,12 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     try { inventoryArt=Json::parse(static_cast<const char*>(buffer.data),static_cast<const char*>(buffer.data)+buffer.size); }
     catch (const std::exception& e) { svc_resource->free(mod_ctx,&buffer); return mods::set_error(error,MOD_ERROR,e.what()); }
     svc_resource->free(mod_ctx,&buffer);
+    HookOptions entranceOptions=HOOK_OPTIONS_INIT;
+    entranceOptions.priority=1000; // capture original request before the randomizer's priority-0 rewrite
+    auto entranceResult=mods::hook::add_pre<TrackerEntranceRequest>(beforeEntrance,&entranceOptions);
+    if(entranceResult==MOD_OK) entranceResult=mods::hook::add_post<TrackerEntranceRequest>(afterEntrance);
+    if(entranceResult==MOD_OK) entranceResult=mods::hook::add_post<TrackerEntranceArrival>(arrivedEntrance);
+    if(entranceResult!=MOD_OK) return mods::set_error(error,entranceResult,"TPTracker entrance observation hook failed");
     auto hintResult=mods::hook::add_post<HintDialogueDraw>(onDialogueDraw);
     if (hintResult!=MOD_OK) return mods::set_error(error,hintResult,"TPTracker hint dialogue hook failed");
     auto result = svc_item->observe_gives(mod_ctx, onGive, nullptr, &itemObserver);
@@ -1228,6 +1384,7 @@ MOD_EXPORT ModResult mod_update(ModError*) {
     return MOD_OK;
 }
 MOD_EXPORT ModResult mod_shutdown(ModError*) {
+    if(itemWindow) svc_ui->window_close(mod_ctx,itemWindow);
     if(detailWindow) svc_ui->window_close(mod_ctx,detailWindow);
     if (menuTab) svc_ui->unregister_menu_tab(mod_ctx,menuTab);
     menuTab=0;

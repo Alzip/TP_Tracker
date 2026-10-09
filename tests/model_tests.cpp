@@ -218,7 +218,7 @@ int main(int argc, char** argv) {
         model.loadSeed("{\"seed\":\"no logic\",\"settings\":{\"Logic Rules\":\"No Logic\"}}");
         model.solve();
         require(model.accessible.at("Wooden Sword Chest") == Truth::yes, "no logic setting ignored");
-        // Tiny graph: vanilla routing cannot be bypassed by a shuffled edge.
+        // Tiny graph: shuffled routing replaces the destination, retaining source gates.
         Model graph;
         auto fixture = data;
         fixture["areas"] = Json::parse(R"json([
@@ -237,7 +237,7 @@ int main(int argc, char** argv) {
         graph.inventory["Progressive Clawshot"] = 0;
         graph.loadSeed(R"({"seed":"test","settings":{"Logic Rules":"All Locations Reachable","Randomize Dungeon Entrances":"On"},"entrances_complete":true,"entrances":{"Root -> A":"B"}})");
         graph.solve();
-        require(graph.accessible.at("Wooden Sword Chest") == Truth::no, "shuffled entrance overrode vanilla logic");
+        require(graph.accessible.at("Wooden Sword Chest") == Truth::yes, "shuffled entrance destination ignored");
         fixture["areas"] = Json::parse(R"([
             {"Name":"Root","Can Transform":"Never","Exits":{"A":"Twilight"}},
             {"Name":"A","Twilight":"Faron","Can Transform":"Never"}])");

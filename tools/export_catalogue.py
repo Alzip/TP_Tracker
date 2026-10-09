@@ -49,6 +49,9 @@ for entrance in yaml.safe_load((data / 'entrance_shuffle_data.yaml').read_text(e
                     if scene not in grotto_scenes.setdefault(destination, []):
                         grotto_scenes[destination].append(scene)
 for area in world:
+    if area['Name'] == 'Outside Castle Town South':
+        area.setdefault('Events', {})['South Castle Town Tightrope Ledge Reached'] = 'Clawshot'
+        area['Locations']['Outside South Castle Town Tightrope Chest'] = "'South_Castle_Town_Tightrope_Ledge_Reached' and Can_Use_Tightrope"
     # Runtime seed setup fills Desert's map bit (0x20) when Unlock Map Regions
     # is On. The upstream graph omits that alternative only for these two
     # portals, creating a first-visit cycle even with starting portal items.
@@ -233,8 +236,27 @@ for check in checks:
     if check['name'] in stone_flags: check['map_hide_event'] = stone_flags[check['name']]
 items = [x for x in yaml.safe_load((data / 'items.yaml').read_text(encoding='utf-8'))
          if x.get('Importance') == 'Major' and isinstance(x.get('Id'), int) and x['Id'] < 256]
+# Preserve logical edge IDs and native spawn tuples. Log aliases are presentation only.
+entrance_edges = []
+for entry in yaml.safe_load((data / 'entrance_shuffle_data.yaml').read_text(encoding='utf-8')):
+    endpoints = [entry.get(key) or {} for key in ('Forward', 'Return')]
+    if any(e and (not isinstance(e.get('Stage'), int) or e['Stage'] < 0 or e.get('Room', -1) < 0) for e in endpoints):
+        continue
+    for primary, endpoint in zip((True, False), endpoints):
+        if not endpoint: continue
+        connection = endpoint['Connection']
+        parent, target = connection.split(' -> ')
+        if parent not in known_areas or target not in known_areas: continue
+        entrance_edges.append({'id': connection, 'parent': parent, 'target': target,
+            'label': endpoint.get('Alias') or connection, 'type': entry['Type'], 'primary': primary,
+            'reverse': endpoints[1 if primary else 0].get('Connection', ''),
+            'couple': entry.get('Entrance Couple Tag', ''),
+            'stage_id': endpoint['Stage'], 'stage': stages[endpoint['Stage']], 'room': endpoint['Room'],
+            'impossible': next(a for a in world if a['Name']==parent).get('Exits', {}).get(target)=='Impossible',
+            'spawn': endpoint['Spawn'], 'layer': endpoint['State'],
+            'followers': endpoint.get('Follower Entrances') or []})
 result = {'version': 1, 'source': 'mods/randomizer/generator/data', 'checks': checks,
-          'items': items, 'areas': world, 'stage_labels': stage_labels,
+          'items': items, 'areas': world, 'stage_labels': stage_labels, 'entrance_edges': entrance_edges,
           'macros': yaml.safe_load((data / 'macros.yaml').read_text(encoding='utf-8'))}
 result['setting_options'] = {
     setting['Name']: [str(next(iter(option))) if isinstance(option, dict) else str(option)

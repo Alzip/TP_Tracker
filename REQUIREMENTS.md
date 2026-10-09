@@ -1,6 +1,6 @@
 # TPTracker requirements and installation
 
-These requirements apply to TPTracker 0.4.40.
+These requirements apply to TPTracker 0.4.41.
 
 ## Required
 
@@ -14,7 +14,7 @@ The single multiplatform `.dusk` includes Windows x64, Linux x64/ARM64, macOS In
 
 ## Install or update
 
-1. Extract the ZIP and install `TPTracker-0.4.40-multiplatform.dusk` through Dusklight's mod installation workflow, or place it in Dusklight's `mods` directory.
+1. Extract the ZIP and install `TPTracker-0.4.41-multiplatform.dusk` through Dusklight's mod installation workflow, or place it in Dusklight's `mods` directory.
 2. Keep only one active TPTracker package; move the older version outside the `mods` directory before enabling the update.
 3. Restart Dusklight and enable TPTracker in its Mods menu. Assign a keyboard/controller shortcut in TPTracker's options if desired.
 
@@ -22,14 +22,14 @@ README.md describes the features and changes. Python, a web browser and an inter
 
 ## Current limits and validation
 
-- Availability uses the seed settings, tracked inventory and vanilla entrance connections. Shuffled entrance routing is not evaluated.
+- Availability uses seed settings, tracked inventory and the active seed's entrance connections. Keep its Spoiler Log.txt and seed.dat together in the Randomizer seed folder for exact routing and collected-item history. Missing entrance data remains UNKNOWN.
 - Unknown state remains UNKNOWN; the private live Progressive Sky Book character count is still unsupported. Some unmapped scripted rewards remain checklist-only.
 - Overworld maps, dungeon maps and minimaps are implemented. Controller input, marker alignment and device-specific behavior still require gameplay testing beyond the automated build/model/asset checks.
-- Notes and skipped checks are stored with the selected save. Save your game to retain them.
+- Notes, skipped checks and discovered entrances are stored with the selected save. Save your game to retain them.
 - The tracker does not modify game progression or randomized item placements. It cannot repair a damaged Randomizer save.
 - The tracker window uses Dusklight's input focus and cannot detach to another monitor.
 
-Regression coverage for this release includes held/delivered Auru's Memo, desert access, the Forest Temple second-monkey door with available/spent keys, unrelated gate isolation, and the existing cave, warp, notes and marker cases.
+New regressions cover spoiler-safe progressive history, starting inventory, native entrance overrides, repeated labels, both coupling modes, confirmed-traversal recording, seed isolation and the tightrope form sequence. Existing regression coverage includes held/delivered Auru's Memo, desert access, the Forest Temple second-monkey door with available/spent keys, unrelated gate isolation, and the existing cave, warp, notes and marker cases.
 
 The 0.4.35 regression checks also cover river minigame area membership, independent Iza completion, native fishing reward aliases and outdoor entrance marker selection.
 

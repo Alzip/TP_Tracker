@@ -1,0 +1,114 @@
+#include "model.hpp"
+#include "seed_data.hpp"
+#include "entrance_journal.hpp"
+#include <fstream>
+#include <iostream>
+#include <sstream>
+using namespace tracker;
+void require(bool value,const char* message) { if(!value) throw std::runtime_error(message); }
+std::string read(const char* path) { std::ifstream in(path); std::ostringstream text; text<<in.rdbuf(); return text.str(); }
+int main(int argc,char** argv) { try {
+    require(argc>=2,"missing catalogue"); auto data=Json::parse(read(argv[1]));
+    Model model; model.load(data);
+    const std::string log="Hash: Privacy\nAll Starting Items:\n    World 1:\n      - Shadow Crystal\nAll Locations:\n    World 1:\n        Wooden Sword Chest: Progressive Sword\n        Coro Lantern: Progressive Sword\n        Ordon Cat Rescue: Shadow Crystal\nAll Entrances:\n    World 1:\n        Dungeon:\n            Faron Woods -> Forest Temple: Goron Mines from Death Mountain Sumo Hall\n            Death Mountain Sumo Hall -> Goron Mines: Forest Temple from Faron Woods\n# Settings\nLogic Rules: All Locations Reachable\nRandomize Dungeon Entrances: On\nDecouple Entrances: Off\n";
+    model.loadSeed(log);
+    require(model.inventory.empty() && model.obtained.empty(),"log granted inventory/completion");
+    model.inventory["Progressive Sword"]=1;
+    require(model.itemHistory("Progressive Sword").find("Wooden Sword Chest")==std::string::npos,"owned item leaked unchecked location");
+    model.obtained.insert("Wooden Sword Chest");
+    auto history=model.itemHistory("Progressive Sword");
+    require(history.find("Wooden Sword Chest")!=std::string::npos,"collected source missing");
+    require(history.find("Coro Lantern")==std::string::npos,"uncollected progressive upgrade leaked");
+    model.inventory["Progressive Sword"]=0;
+    require(model.itemHistory("Progressive Sword").find("Wooden Sword Chest")==std::string::npos,"grey tile leaked location");
+    model.inventory["Shadow Crystal"]=1;
+    require(model.itemHistory("Shadow Crystal").find("Starting inventory")!=std::string::npos,"starting item source missing");
+    require(model.itemHistory("Shadow Crystal").find("Ordon Cat Rescue")==std::string::npos,"starting item leaked another copy");
+    const std::string forest="North Faron Woods -> Forest Temple Entrance";
+    require(model.entrances.at(forest)=="Goron Mines Entrance","alias destination resolved incorrectly");
+    require(model.entrances.at("Goron Mines Entrance -> Death Mountain Sumo Hall Goron Mines Tunnel")=="North Faron Woods","coupled return not inverted");
+    require(!model.entrancesComplete,"partial log treated as complete");
+    require(model.entranceDestination("Lake Hylia Lakebed Temple Entrance","Lakebed Temple Entrance").empty(),"missing shuffled edge silently fell back to vanilla");
+    auto decoupled=log; decoupled.replace(decoupled.find("Decouple Entrances: Off"),std::string("Decouple Entrances: Off").size(),"Decouple Entrances: On");
+    model.loadSeed(decoupled);
+    require(!model.entrances.contains("Goron Mines Entrance -> Death Mountain Sumo Hall Goron Mines Tunnel"),"decoupled seed inferred return");
+    EntranceJourney journey;
+    const auto* from=journey.endpoint(model,forest);
+    require(from!=nullptr,"native entrance missing");
+    auto spawn=[](const Json& e) { return EntranceSpawn{e.at("stage"),e.at("room"),e.at("spawn"),e.at("layer")}; };
+    const auto* reverse=journey.endpoint(model,from->at("reverse"));
+    const auto* target=journey.endpoint(model,model.entranceTargets.at(forest));
+    auto request=spawn(*from), arrival=spawn(*target);
+    journey.begin(model,request,reverse->at("stage"),reverse->at("room"));
+    require(!journey.source.empty() && model.visitedEntrances.empty(),"request revealed entrance before traversal");
+    journey.validateRedirect(model,arrival);
+    require(journey.arrive(model,arrival) && model.visitedEntrances.contains(forest),"confirmed traversal not recorded");
+    require(model.visitedEntrances.size()==1,"decoupled traversal leaked reverse");
+    model.visitedEntrances.clear();
+    journey.begin(model,request,reverse->at("stage"),reverse->at("room")); journey.validateRedirect(model,request);
+    require(!journey.arrive(model,arrival) && model.visitedEntrances.empty(),"cancelled/unmodified request recorded");
+    journey.begin(model,request,reverse->at("stage"),reverse->at("room")); model.seed="another save";
+    require(!journey.arrive(model,arrival),"pending traversal leaked across seeds");
+    // Repeated aliases cannot collapse separate decoupled doors. The native
+    // packed table disambiguates destinations which the plain log cannot.
+    auto repeated=data;
+    Json doors=Json::array();
+    for(const auto& e:data.at("entrance_edges")) if(e.at("couple")=="Zoras Domain From Upper Zoras River") doors.push_back(e);
+    require(doors.size()==6,"double-door fixture incomplete");
+    repeated["entrance_edges"]=doors;
+    std::string duplicateLog="Hash: Double doors\nAll Entrances:\n    World 1:\n        Overworld:\n";
+    for(const auto& e:doors) {
+        auto label=e.at("label").get<std::string>(); auto arrow=label.find(" -> ");
+        duplicateLog+="            "+label+": "+label.substr(arrow+4)+" from "+label.substr(0,arrow)+"\n";
+    }
+    duplicateLog+="# Settings\nLogic Rules: All Locations Reachable\nRandomize Overworld Entrances: On\nDecouple Entrances: On\nDecouple Double Door Entrances: On\n";
+    Model doubled; doubled.load(repeated); doubled.loadSeed(duplicateLog);
+    require(!doubled.entrancesComplete,"duplicate destination labels guessed without native data");
+    std::string native="formatVersion: 3\nmEntranceOverrides:\n";
+    for(const auto& e:doors) native+="  "+std::to_string(nativeEntranceKey(e))+": "+std::to_string(nativeEntranceKey(e))+"\n";
+    doubled.loadNativeEntrances(native);
+    require(doubled.entrancesComplete && doubled.entranceTargets.size()==6,"native tuples did not resolve every decoupled door");
+    for(const auto& e:doors) require(doubled.entranceTargets.at(e.at("id"))==e.at("id").get<std::string>(),"decoupled physical door routed incorrectly");
+    auto groupLog=std::string("Hash: Coupled doors\nAll Entrances:\n    World 1:\n        Overworld:\n            Upper Zoras River -> Zoras Domain: Zoras Domain from Upper Zoras River\n            Zoras Domain -> Upper Zoras River: Upper Zoras River from Zoras Domain\n# Settings\nLogic Rules: All Locations Reachable\nRandomize Overworld Entrances: On\nDecouple Entrances: Off\nDecouple Double Door Entrances: Off\n");
+    doubled.loadSeed(groupLog);
+    require(doubled.entrancesComplete,"coupled double doors left secondary doors unresolved");
+    require(doubled.entranceTargets.at(doors[0].at("id"))==doors[4].at("id").get<std::string>(),"coupled door representative differs from generator");
+    // Broken native imports must preserve a previously valid seed.
+    const auto savedTargets=doubled.entranceTargets;
+    bool badNative=false; try { doubled.loadNativeEntrances("formatVersion: 3\nmEntranceOverrides:\n  bad: 1\n"); } catch(...) { badNative=true; }
+    require(badNative && doubled.entranceTargets==savedTargets,"failed native load modified routes");
+    // Every native endpoint gets a stable, collision-free persisted key.
+    std::set<uint64_t> keys;
+    for(const auto& e:data.at("entrance_edges")) require(keys.insert(entranceKey(e.at("id").get<std::string>())).second,"duplicate entrance journal key");
+    require(Json(keys).dump().size()<10000,"entrance journal exceeds compact storage budget");
+    // The actual tightrope route requires both actions, in different forms.
+    auto tight=data;
+    for(auto& a:tight["areas"]) if(a.at("Name")=="Root") a["Exits"]={{"Outside Castle Town South","Human_Link"}};
+    model.resetSave(); model.load(tight);
+    model.loadSeed("Hash: Tightrope\n# Settings\nLogic Rules: All Locations Reachable\nLanayru Twilight Cleared: On\n");
+    model.inventory["Progressive Clawshot"]=0; model.inventory["Shadow Crystal"]=0;
+    const auto check="Outside South Castle Town Tightrope Chest";
+    model.solve(); require(model.accessible.at(check)==Truth::no,"tightrope open without gear");
+    model.inventory["Progressive Clawshot"]=1; model.solve(); require(model.accessible.at(check)==Truth::no,"tightrope open without transformation");
+    model.inventory["Progressive Clawshot"]=0; model.inventory["Shadow Crystal"]=1; model.solve(); require(model.accessible.at(check)==Truth::no,"tightrope open without clawshot");
+    model.inventory["Progressive Clawshot"]=1; model.solve(); require(model.accessible.at(check)==Truth::yes,"human/wolf sequence locked");
+    // Full and compact views must share the same result without expanding every macro by default.
+    auto compact=model.checkDetails(check,false), full=model.checkDetails(check,true);
+    require(compact.find("OPEN")!=std::string::npos && compact.size()<full.size(),"compact detail status/expansion broken");
+    model.resetSave(); require(model.itemPlacements.empty() && model.visitedEntrances.empty(),"seed history leaked across saves");
+    if(argc>2) {
+        model.load(data); const auto raw=read(argv[2]); model.loadSeed(raw);
+        if(argc>3) model.loadNativeEntrances(read(argv[3]));
+        auto parsed=readSeedLog(raw);
+        for(const auto& id:model.shuffledEdges) if(!model.entrances.contains(id)) std::cerr<<"Unresolved edge: "<<id<<"\n";
+        require(model.entrancesComplete,"supplied seed has unresolved connections");
+        require(!model.itemPlacements.empty(),"supplied seed placements not parsed");
+        require(model.visitedEntrances.empty() && model.obtained.empty(),"loading full seed exposed progress");
+        // Max-inventory evaluation catches destination errors without revealing rewards.
+        for(const auto& i:data.at("items")) model.inventory[i.at("Name")]=99;
+        model.solve();
+        std::cout<<"Supplied seed: "<<parsed.connections.size()<<" log connections, "<<model.entrances.size()<<" directed graph mappings; no visits revealed.\n";
+    }
+    std::cout<<"Seed privacy, routing, traversal and tightrope tests passed.\n";
+    return 0;
+} catch(const std::exception& e) { std::cerr<<e.what()<<"\n"; return 1; } }

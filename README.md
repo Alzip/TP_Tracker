@@ -1,6 +1,17 @@
 # TPTracker 0.4.41
 
-## 0.4.41 Lakebed access and gyro map hover
+## 0.4.41 item history, entrance tracking and access fixes
+
+- Select any inventory tile with mouse or controller to see where its collected rewards came from. Grey items reveal no locations, and owning one progressive item never exposes uncollected upgrades. Starting inventory is identified separately. The tracker reads the matching spoiler log but still uses real save completion and inventory as proof of collection.
+- Check Details opens with a compact access summary, relevant item counts and the collection guide. **Show full logic** expands the detailed rules. The color legend uses clean text separators.
+- **Outside South Castle Town Tightrope Chest** now models using Clawshot as human and crossing the rope as wolf in sequence. It no longer requires both forms at once.
+- Entrance accessibility follows the seed's shuffled dungeon, boss, cave, grotto, interior, overworld and starting-spawn connections, including decoupled directions and double doors. The matching **seed.dat** resolves duplicate entrance names and supplies the exact overrides the game uses. Incomplete or unsupported connections remain UNKNOWN rather than assuming vanilla routes.
+- An **Entrances** tab appears only with entrance randomization enabled. It records a connection after a confirmed scene transition, reveals only that direction, and saves discoveries with the game. Previously travelled entrances must be used again to record them. The full route table is never shown in this journal.
+
+Keep the selected seed's **Spoiler Log.txt** and **seed.dat** together in its Randomizer seed folder. Automatic loading verifies the selected save's seed identity. The anti-spoiler log remains a settings-only fallback; it cannot supply item history. Check locations and physical map marker coordinates remain their existing game-world positions; the new journal describes shuffled travel connections.
+
+These features are implemented and tested locally. Native mouse/controller presentation and entrance traversal still require in-game validation before release.
+
 
 - Fixes the **Lakebed Temple Before Deku Toad Alcove Chest** falsely requiring three small keys. The tracker now budgets the two actual east water-route doors using unspent keys and saved unlocked doors, and recognizes water already released. The underwater key gate, item requirements, and seed key settings still apply.
 
@@ -192,10 +203,10 @@ Native C++ tracker for Dusklight, using RmlUi/UiService, HookService, ItemServic
 - Open F1 > Mods > TPTracker and enable **TPTracker**.
 - Both tabs have an **All statuses / OPEN / LOCKED / DONE / UNKNOWN** dropdown. Checks appear on separate rows. All Checks has area headings.
 - F1 also offers text search, Hide completed checks, and Native map check markers.
-- A saved randomizer slot automatically selects its seed settings. New seeds can bind after their first save. The manual anti-spoiler log / JSON picker remains available.
+- A saved randomizer slot automatically selects its seed settings. New seeds can bind after their first save. The manual seed-log / JSON picker remains available. The full spoiler log enables collected-item history; the matching seed.dat resolves ambiguous entrance names.
 - Open the game's map and zoom into a province or area. Move the game's cursor over a marker to see the check name/status. Green means accessible, red locked, amber unknown, and gray/struck through completed.
 
-**Entrance connections always use vanilla routing**, including shuffled seeds. This does not promise that an accessible check can be reached through the seed's shuffled entrances.
+**Entrance connections use the active seed's routing.** Unshuffled seeds retain vanilla routes. Shuffled seeds use the matching log and native seed overrides; unresolved connections fail closed as UNKNOWN.
 
 ## Changes from 0.2.0
 
@@ -238,7 +249,7 @@ ctest --test-dir build -C Release --output-on-failure
 Package: `build/mods/TP_Randomizer_Tracker.dusk`.
 Model-only builds support `-DTPTRACKER_TESTS_ONLY=ON`. Catalogue export uses `tools/export_catalogue.py` and PyYAML at development time only.
 
-Tests cover catalogue integrity, grants/deduplication, save reset, stage isolation, parsing/escaping, transactional settings import, form separation, twilight access/clearance, rod tiers, count predicates and vanilla routing despite supplied shuffled entrances. Compilation and model tests do not validate native map rendering or live save binding.
+Tests cover catalogue integrity, grants/deduplication, save reset, stage isolation, parsing/escaping, transactional settings import, form separation, twilight access/clearance, rod tiers, count predicates and seed-specific directed entrance routing, duplicate aliases/native overrides, coupled and decoupled doors, spoiler-safe item history, and traversal-only discovery. Compilation and model tests do not validate native map rendering or live save binding.
 
 See RESEARCH.md for implementation evidence and REQUIREMENTS.md for the remaining acceptance checks.
 
