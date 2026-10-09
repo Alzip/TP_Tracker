@@ -82,6 +82,7 @@ for check in ('Coro Bottle','Coro Gate Key','Coro Lantern'):
 # These rewards are committed through message/native item helpers.
 for check, profile in (('Shad Dominion Rod','NPC_SHAD'),
                        ('Charlo Donation Blessing','NPC_PRAYER'),
+                       ('Zoras Domain Underwater Goron','NPC_GRA'),
                        ('Bulblin Camp Roasted Boar','OBJ_RW')):
  npc_actors.setdefault(check,set()).update(object_names[profile])
 # Plumm commits his reward dynamically, outside the static tag scan.

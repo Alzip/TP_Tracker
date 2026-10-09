@@ -1027,54 +1027,86 @@ ModResult buildNotes(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHa
     notesElement=right;
     return result==MOD_OK ? updateNotes(mod_ctx,nullptr,nullptr) : result;
 }
-UiElementHandle entranceHeading=0;
-std::vector<UiElementHandle> entranceRows,entranceRowText;
-size_t entrancePage=0,entrancePageCount=1;
+UiElementHandle entranceHeading=0,entranceSearchControl=0,entrancePrevious=0,entranceNext=0;
+std::vector<UiElementHandle> entranceRows,entranceRowText,entranceAnchors;
+std::string entranceSearch;
+size_t entrancePage=0,entrancePageCount=1,entranceVisibleRows=0;
+tracker::StickNavigation entranceNavigation;
+int entranceScrollRow=0;
 bool entrancePreviousDisabled(ModContext*,void*) { return entrancePage==0; }
 bool entranceNextDisabled(ModContext*,void*) { return entrancePage+1>=entrancePageCount; }
+void entranceSearchGet(ModContext*,void*,UiControlValue* value) { value->string_value=entranceSearch.c_str(); }
+void entranceSearchSet(ModContext*,void*,const UiControlValue* value) {
+    const std::string query=value->string_value ? value->string_value : "";
+    if(query==entranceSearch) return;
+    entranceSearch=query; entrancePage=0; entranceScrollRow=0; entranceNavigation={}; ++revision;
+}
+void navigateEntrances() {
+    int x=0,y=0;
+    if(itemWindow || detailWindow || !tracker::readRightStick(x,y)) { entranceNavigation={}; return; }
+    const auto now=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
+    const int direction=entranceNavigation.sample(x,y,now);
+    if(std::abs(entranceNavigation.held)!=2) return;
+    std::vector<UiElementHandle> targets{entranceSearchControl};
+    if(!entrancePreviousDisabled(nullptr,nullptr)) targets.push_back(entrancePrevious);
+    if(!entranceNextDisabled(nullptr,nullptr)) targets.push_back(entranceNext);
+    targets.insert(targets.end(),entranceAnchors.begin(),entranceAnchors.begin()+entranceVisibleRows);
+    const int previous=entranceScrollRow;
+    if(direction) entranceScrollRow+=direction==2 ? 1 : -1;
+    entranceScrollRow=std::clamp(entranceScrollRow,0,static_cast<int>(targets.size())-1);
+    // Native focus scrolls each readable block into view. Hidden rows and disabled
+    // page buttons are excluded; the host rejects focus while text entry is on top.
+    if(svc_ui->elem_focus(mod_ctx,targets[entranceScrollRow])!=MOD_OK) { entranceScrollRow=previous; entranceNavigation={}; }
+}
 ModResult updateEntrances(ModContext*,void*,ModError*) {
-    if(renderedRevision==revision) return MOD_OK;
-    auto result=renderInventory(); if(result!=MOD_OK) return result;
-    std::vector<std::string> discovered;
-    for(const auto& edge:model.catalogue.at("entrance_edges")) {
-        const auto id=edge.at("id").get<std::string>();
-        if(!model.visitedEntrances.contains(id) || !model.entranceTargets.contains(id)) continue;
-        const auto* target=entranceJourney.endpoint(model,model.entranceTargets.at(id));
-        if(!target) continue;
-        const auto destination=target->at("target").get<std::string>();
-        const auto sourceLabel=model.settings.value("Decouple Double Door Entrances",Json("Off"))=="On" && !edge.at("couple").get<std::string>().empty() ? id : edge.at("label").get<std::string>();
-        discovered.push_back("<div class='tp-group'>"+tracker::escape(sourceLabel)+"</div><div>Leads to: "+tracker::escape(destination)+"</div>");
+    if(renderedRevision!=revision) {
+        auto result=renderInventory(); if(result!=MOD_OK) return result;
+        const auto view=tracker::entranceJournalView(model,entranceSearch);
+        entrancePageCount=tracker::pageCount(view.entries.size(),pageSize);
+        entrancePage=std::min(entrancePage,entrancePageCount-1);
+        entranceVisibleRows=std::min(pageSize,view.entries.size()-entrancePage*pageSize);
+        std::string heading="<div class='tp-title'>Discovered entrances</div><div class='tp-note'>Connections appear after you use them. Save your game to keep this journal. Each direction is recorded separately. Search entrance names or destinations. Right stick: up/down scrolls this page.</div>";
+        heading+="<div>"+std::to_string(view.entries.size())+" matching / "+std::to_string(view.discovered)+" discovered | Page "+std::to_string(entrancePage+1)+" / "+std::to_string(entrancePageCount)+"</div>";
+        if(model.settings.value("Decouple Entrances",Json("Off"))=="On") heading+="<div class='tp-note'>Decoupled entrances: the return trip can lead somewhere else.</div>";
+        if(!model.entrancesComplete) heading+="<div class='tp-note'>Keep this save's spoiler log and seed.dat together to resolve all entrance connections.</div>";
+        if(view.discovered==0) heading+="<div class='tp-note'>No entrances recorded yet. Previously visited routes cannot be reconstructed from the spoiler log; use an entrance to record it.</div>";
+        else if(view.entries.empty()) heading+="<div class='tp-note'>No discovered entrances match this search. Clear the search to show all discoveries.</div>";
+        svc_ui->elem_set_rml(mod_ctx,entranceHeading,heading.c_str());
+        for(size_t i=0;i<entranceRows.size();++i) {
+            const bool visible=i<entranceVisibleRows;
+            svc_ui->elem_set_visible(mod_ctx,entranceRows[i],visible);
+            if(visible) {
+                const auto& entry=view.entries[entrancePage*pageSize+i];
+                const auto text="<div class='tp-group'>"+tracker::escape(entry.source)+"</div><div>Leads to: "+tracker::escape(entry.destination)+"</div>";
+                svc_ui->elem_set_rml(mod_ctx,entranceRowText[i],text.c_str());
+            }
+        }
+        renderedRevision=revision;
     }
-    std::sort(discovered.begin(),discovered.end());
-    entrancePageCount=std::max(size_t(1),(discovered.size()+9)/10);
-    entrancePage=std::min(entrancePage,entrancePageCount-1);
-    std::string heading="<div class='tp-title'>Discovered entrances</div><div class='tp-note'>Connections appear after you use them. Save your game to keep this journal. Each direction is recorded separately.</div>";
-    heading+="<div>"+std::to_string(discovered.size())+" discovered | Page "+std::to_string(entrancePage+1)+" / "+std::to_string(entrancePageCount)+"</div>";
-    if(model.settings.value("Decouple Entrances",Json("Off"))=="On") heading+="<div class='tp-note'>Decoupled entrances: the return trip can lead somewhere else.</div>";
-    if(!model.entrancesComplete) heading+="<div class='tp-note'>Keep this save's spoiler log and seed.dat together to resolve all entrance connections.</div>";
-    if(discovered.empty()) heading+="<div class='tp-note'>No entrances recorded yet. Previously visited routes cannot be reconstructed from the spoiler log; use an entrance to record it.</div>";
-    svc_ui->elem_set_rml(mod_ctx,entranceHeading,heading.c_str());
-    for(size_t i=0;i<entranceRows.size();++i) {
-        const auto index=entrancePage*10+i; bool visible=index<discovered.size();
-        svc_ui->elem_set_visible(mod_ctx,entranceRows[i],visible);
-        if(visible) svc_ui->elem_set_rml(mod_ctx,entranceRowText[i],discovered[index].c_str());
-    }
-    renderedRevision=revision; return MOD_OK;
+    // Run every frame, including while the journal data is unchanged.
+    navigateEntrances();
+    return MOD_OK;
 }
 ModResult buildEntrances(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     notesTab=false; pageControl=checksElement=countElement=notesElement=0;
     checkRows.clear(); headingRows.clear(); visibleNames.clear(); visibleRows=0;
     inventoryElement=left; inventorySections.clear(); inventoryBlocks.clear();
-    entranceRows.clear(); entranceRowText.clear(); entrancePage=0; renderedRevision=0;
+    entranceRows.clear(); entranceRowText.clear(); entranceAnchors.clear(); entrancePage=0; renderedRevision=0;
+    entranceVisibleRows=0; entranceScrollRow=0; entranceNavigation={};
     auto result=svc_ui->pane_add_rml(mod_ctx,right,"",&entranceHeading); if(result!=MOD_OK) return result;
+    UiControlDesc searchControl=UI_CONTROL_DESC_INIT;
+    searchControl.kind=UI_CONTROL_STRING; searchControl.label="Search entrances"; searchControl.max_length=128;
+    searchControl.get=entranceSearchGet; searchControl.set=entranceSearchSet;
+    searchControl.string_set_mode=UI_STRING_SET_ON_COMMIT;
+    result=svc_ui->pane_add_control(mod_ctx,right,&searchControl,&entranceSearchControl); if(result!=MOD_OK) return result;
     for(int i=0;i<2;++i) {
         UiControlDesc page=UI_CONTROL_DESC_INIT; page.kind=UI_CONTROL_BUTTON; page.label=i?"Next page":"Previous page";
         page.user_data=reinterpret_cast<void*>(static_cast<uintptr_t>(i));
         page.is_disabled=i?entranceNextDisabled:entrancePreviousDisabled;
-        page.on_pressed=[](ModContext*,void* data) { if(data) { if(entrancePage+1<entrancePageCount) ++entrancePage; } else if(entrancePage) --entrancePage; ++revision; };
-        result=svc_ui->pane_add_control(mod_ctx,right,&page,nullptr); if(result!=MOD_OK) return result;
+        page.on_pressed=[](ModContext*,void* data) { if(data) { if(entrancePage+1<entrancePageCount) ++entrancePage; } else if(entrancePage) --entrancePage; entranceScrollRow=0; ++revision; };
+        result=svc_ui->pane_add_control(mod_ctx,right,&page,i?&entranceNext:&entrancePrevious); if(result!=MOD_OK) return result;
     }
-    for(int i=0;i<10;++i) {
+    for(size_t i=0;i<pageSize;++i) {
         UiElementHandle row=0,anchor=0,text=0; UiRowDesc desc=UI_ROW_DESC_INIT;
         result=svc_ui->pane_add_row(mod_ctx,right,&desc,&row); if(result!=MOD_OK) return result;
         svc_ui->elem_set_class(mod_ctx,row,"tp-detail-sections",true);
@@ -1082,7 +1114,7 @@ ModResult buildEntrances(ModContext*,UiWindowHandle,UiElementHandle left,UiEleme
         result=svc_ui->pane_add_control(mod_ctx,row,&control,&anchor); if(result!=MOD_OK) return result;
         svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
         result=svc_ui->pane_add_rml(mod_ctx,row,"",&text); if(result!=MOD_OK) return result;
-        entranceRows.push_back(row); entranceRowText.push_back(text);
+        entranceRows.push_back(row); entranceRowText.push_back(text); entranceAnchors.push_back(anchor);
     }
     return updateEntrances(nullptr,nullptr,nullptr);
 }

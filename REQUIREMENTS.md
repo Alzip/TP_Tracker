@@ -1,6 +1,6 @@
 # TPTracker requirements and installation
 
-These requirements apply to TPTracker 0.4.41.
+These requirements apply to TPTracker 0.4.42.
 
 ## Required
 
@@ -14,7 +14,7 @@ The single multiplatform `.dusk` includes Windows x64, Linux x64/ARM64, macOS In
 
 ## Install or update
 
-1. Extract the ZIP and install `TPTracker-0.4.41-multiplatform.dusk` through Dusklight's mod installation workflow, or place it in Dusklight's `mods` directory.
+1. Extract the ZIP and install `TPTracker-0.4.42-multiplatform.dusk` through Dusklight's mod installation workflow, or place it in Dusklight's `mods` directory.
 2. Keep only one active TPTracker package; move the older version outside the `mods` directory before enabling the update.
 3. Restart Dusklight and enable TPTracker in its Mods menu. Assign a keyboard/controller shortcut in TPTracker's options if desired.
 
@@ -44,3 +44,5 @@ Closest-zoom map inspection: left-click a visible individual check icon, or hold
 The Map: Show Check Info hint option hides only the visual prompt; it does not disable map inspection. The setting is remembered after closing Dusklight.
 
 When moving game data, preserve the card/save, its matching `.mods` sidecar directory and the corresponding Randomizer `seeds` directory together. Save in-game and wait for saving to finish before closing the window. A normal window close is not a replacement for an in-game save. Do not move or rename live save files while the application is running.
+
+The Entrances tab provides a Search entrances field for discovered sources or destinations. Clear the field to show all discoveries. Controller right stick up/down scrolls the page.

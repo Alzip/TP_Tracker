@@ -44,7 +44,17 @@ int main(int argc,char** argv) { try {
     journey.validateRedirect(model,arrival);
     require(journey.arrive(model,arrival) && model.visitedEntrances.contains(forest),"confirmed traversal not recorded");
     require(model.visitedEntrances.size()==1,"decoupled traversal leaked reverse");
+    auto entrances=entranceJournalView(model,"");
+    require(entrances.discovered==1 && entrances.entries.size()==1,"journal count includes undiscovered connections");
+    require(entranceJournalView(model,"  fArOn  ").entries.size()==1,"source search or whitespace/case handling broken");
+    require(entranceJournalView(model,"gOrOn").entries.size()==1,"destination search broken");
+    auto hiddenSearch=entranceJournalView(model,"Death Mountain");
+    require(hiddenSearch.discovered==1 && hiddenSearch.entries.empty(),"search revealed an unvisited source from the seed");
+    require(entranceJournalView(model,"not a real entrance").entries.empty(),"unmatched search did not clear results");
+    require(entranceJournalView(model," \t ").entries.size()==1,"clearing search did not restore discoveries");
+
     model.visitedEntrances.clear();
+    require(entranceJournalView(model,"Goron").entries.empty(),"empty journal search revealed seed connections");
     journey.begin(model,request,reverse->at("stage"),reverse->at("room")); journey.validateRedirect(model,request);
     require(!journey.arrive(model,arrival) && model.visitedEntrances.empty(),"cancelled/unmodified request recorded");
     journey.begin(model,request,reverse->at("stage"),reverse->at("room")); model.seed="another save";
@@ -73,6 +83,12 @@ int main(int argc,char** argv) { try {
     doubled.loadSeed(groupLog);
     require(doubled.entrancesComplete,"coupled double doors left secondary doors unresolved");
     require(doubled.entranceTargets.at(doors[0].at("id"))==doors[4].at("id").get<std::string>(),"coupled door representative differs from generator");
+    // Decoupled double-door searches retain physical door names, including underwater routes.
+    doubled.loadSeed(duplicateLog); doubled.loadNativeEntrances(native);
+    for(const auto& e:doors) doubled.visitedEntrances.insert(e.at("id").get<std::string>());
+    const auto underwater=entranceJournalView(doubled,"underwater");
+    require(underwater.discovered==6 && !underwater.entries.empty(),"physical double-door labels cannot be searched");
+    for(const auto& entry:underwater.entries) require(entry.source.find("Underwater")!=std::string::npos || entry.destination.find("Underwater")!=std::string::npos,"search returned unrelated double door");
     // Broken native imports must preserve a previously valid seed.
     const auto savedTargets=doubled.entranceTargets;
     bool badNative=false; try { doubled.loadNativeEntrances("formatVersion: 3\nmEntranceOverrides:\n  bad: 1\n"); } catch(...) { badNative=true; }

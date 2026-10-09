@@ -6143,6 +6143,23 @@
       ]
     }
   ],
+  "Zoras Domain Underwater Goron": [
+    {
+      "stage": "F_SP113",
+      "room": 0,
+      "pos": [
+        -699.650390625,
+        -3761.19775390625,
+        -2706.512939453125
+      ],
+      "anchor": "actor",
+      "world_pos": [
+        -699.650390625,
+        -3761.19775390625,
+        -2706.512939453125
+      ]
+    }
+  ],
   "Zoras Domain Throne East Gate Underwater Rupee": [
     {
       "stage": "F_SP113",

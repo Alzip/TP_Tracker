@@ -1,4 +1,12 @@
-# TPTracker 0.4.41
+# TPTracker 0.4.42
+
+## 0.4.42 entrance search, scrolling and Underwater Goron marker
+
+- **Search entrances** in the Entrances tab matches discovered entrance names and destinations, ignoring capitalization and surrounding spaces. Clearing the search restores all discoveries. Searching never reveals unused connections from the seed.
+- The controller's **right stick up/down** scrolls the Entrances page, including when no new discoveries are being added. It stops at the visible results and respects text-entry and item-history dialogs.
+- Restores **Zoras Domain Underwater Goron** on the in-game map and minimap using the native actor position, and recognizes its native reward collection tag. NPC, completion and accessibility filters still apply.
+
+Release package: **TPTracker-0.4.42-multiplatform.dusk**. Automated regression checks cover search privacy and the NPC marker/collection mapping; physical controller scrolling still needs in-game validation.
 
 ## 0.4.41 item history, entrance tracking and access fixes
 

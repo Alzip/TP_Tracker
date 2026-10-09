@@ -38,6 +38,16 @@ for name in ('Coro Bottle', 'Coro Gate Key', 'Coro Lantern'):
     assert point.get('local', True) and 'world_pos' in point
     assert abs(point['pos'][0] - (-13659.43359375)) < 0.01
     assert abs(point['pos'][2] - (-14367.0830078125)) < 0.01
+# This scripted NPC reward must have both local and world-map actor coordinates.
+goron = 'Zoras Domain Underwater Goron'
+assert 'goron_reward:F_SP113' in checks[goron]['aliases']
+assert len(positions[goron]) == 1
+point = positions[goron][0]
+assert point['stage'] == 'F_SP113' and point['room'] == 0
+assert point.get('local', True) and 'world_pos' in point and 'overworld' not in point
+assert point['anchor'] == 'actor'
+assert abs(point['pos'][0] - (-699.650390625)) < 0.01
+assert abs(point['pos'][2] - (-2706.512939453125)) < 0.01
 bugs=[c for c in checks.values() if 'Golden Bug' in c['categories']]
 assert 'Renados Sanctuary Front Door' not in checks
 assert all(p['overworld']['label']=="Renado's Sanctuary: Renado's Letter" for p in positions['Renados Letter'] if 'overworld' in p)

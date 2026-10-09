@@ -206,6 +206,7 @@ for location in yaml.safe_load((data / 'locations.yaml').read_text(encoding='utf
     native_rewards = {
         'Shad Dominion Rod': 'shad_dominion_rod',
         'Charlo Donation Blessing': 'prayer_reward',
+        'Zoras Domain Underwater Goron': 'goron_reward:F_SP113',
         'Plumm Fruit Balloon Minigame': 'plumm_minigame_reward',
         'Iza Helping Hand': 'iza_reward_1',
         'Iza Raging Rapids Minigame': 'iza_reward_2',
