@@ -1,4 +1,10 @@
-# TPTracker 0.4.42
+# TPTracker 0.4.43
+
+## 0.4.43 updated poster and banner
+
+Uses the updated square sword poster as the mod icon and the separate wide title banner. This release carries the 0.4.42 tracker features with a new version number for uploading the refreshed artwork to Dusklight.
+
+Release package: **TPTracker-0.4.43-multiplatform.dusk**.
 
 ## 0.4.42 entrance search, scrolling and Underwater Goron marker
 
