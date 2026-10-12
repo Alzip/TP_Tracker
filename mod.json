@@ -5,7 +5,7 @@
   "author": "mikey022",
   "description": "Native Twilight Princess check and inventory tracker. No external tracker or web bridge.",
   "icon": "res/Poster.png",
-  "banner": "res/Poster.png",
+  "banner": "res/Banner.png",
   "abi": 1,
   "imports": [
     {
