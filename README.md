@@ -1,8 +1,12 @@
 # TPTracker 0.4.43
 
-## 0.4.43 updated poster and banner
+## 0.4.43 hint sign filters and updated artwork
 
-Uses the updated square sword poster as the mod icon and the separate wide title banner. This release carries the 0.4.42 tracker features with a new version number for uploading the refreshed artwork to Dusklight.
+- Removes **Lake Hylia Hint Sign** from the in-game map and minimap. Its tracker entry and read hints remain available.
+- Adds **Show hint signs** to both **Current Area** and **All Checks**. Each tab saves its own on/off preference across Dusklight restarts. Turning it off removes signs from that tab's results and pagination without changing Notes or other checks.
+- Uses the updated square sword poster as the mod icon and the separate wide title banner.
+
+Includes all 0.4.42 tracker features. These additions remain in version 0.4.43.
 
 Release package: **TPTracker-0.4.43-multiplatform.dusk**.
 

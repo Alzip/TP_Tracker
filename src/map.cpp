@@ -124,12 +124,7 @@ void inspectionHint(J2DGrafContext* graf,float left,float top) {
 }
 
 bool trackerMapCheck(const Json& check, bool accessibleOnly) {
-    const auto& categories=check.at("categories");
-    // The native game already draws Tears of Light / Twilit Bugs.
-    return std::find(categories.begin(),categories.end(),"Twilit Insect")==categories.end()
-        && passesAccessibilityFilter(*state,check.at("name").get<std::string>(),accessibleOnly)
-        && state->enabled(check) && !state->skipped.contains(check.at("name").get<std::string>())
-        && markerMilestoneVisible(*state,check.at("name").get<std::string>());
+    return mapCheckVisible(*state,check,accessibleOnly);
 }
 bool isRupeeCheck(const Json& check) {
     const int type=checkType(check);

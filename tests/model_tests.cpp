@@ -654,6 +654,22 @@ int main(int argc, char** argv) {
         require(snow.accessible.at("Snowpeak Ruins Ice Room Poe")==Truth::yes,"Snowpeak ice Poe impossible with required items");
         snow.inventory["Shadow Crystal"]=0; snow.solve();
         require(snow.accessible.at("Snowpeak Ruins Lobby Armor Poe")!=Truth::yes,"Snowpeak armor Poe bypasses senses");
+        Model signFilters; signFilters.load(data);
+        size_t hintSignCount=0;
+        for(const auto& check:signFilters.catalogue.at("checks")) {
+            const auto& categories=check.at("categories");
+            const bool sign=std::find(categories.begin(),categories.end(),"Hint Sign")!=categories.end();
+            hintSignCount+=sign;
+            require(passesHintSignFilter(check,true),"enabled hint filter removed a check");
+            require(passesHintSignFilter(check,false)==!sign,"hint filter hid a normal check or retained a sign");
+            if(!sign) continue;
+            const std::string name=check.at("name");
+            require(signFilters.enabled(check),"hiding hint signs must not disable their tracking");
+            signFilters.accessible[name]=Truth::yes;
+            for(bool accessibleOnly:{false,true})
+                require(mapCheckVisible(signFilters,check,accessibleOnly)==(name!="Lake Hylia Hint Sign"),"map/minimap hint visibility regression");
+        }
+        require(hintSignCount==34,"hint sign filter coverage incomplete");
         Model mapFilter;
         mapFilter.accessible={{"open",Truth::yes},{"locked",Truth::no},{"unknown",Truth::unknown}};
         for(const auto* name:{"open","locked","unknown","missing"}) {

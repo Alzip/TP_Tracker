@@ -102,6 +102,7 @@ struct PreferenceTargets {
     bool (&mapTypes)[10];
     bool (&minimapTypes)[10];
     int (&statusFilters)[2];
+    bool (&showHintSigns)[2];
     int& sort;
     std::string& search;
 };
@@ -125,6 +126,10 @@ inline ModResult bindTrackerPreferences(PreferenceStore& store,PreferenceTargets
     auto result=store.bind("current-area-status",t.statusFilters[0],0,0,5);
     if(result!=MOD_OK) return result;
     result=store.bind("all-checks-status",t.statusFilters[1],0,0,5);
+    if(result!=MOD_OK) return result;
+    result=store.bind("current-area-hint-signs",t.showHintSigns[0],true);
+    if(result!=MOD_OK) return result;
+    result=store.bind("all-checks-hint-signs",t.showHintSigns[1],true);
     if(result!=MOD_OK) return result;
     result=store.bind("check-sort",t.sort,1,0,1);
     if(result!=MOD_OK) return result;

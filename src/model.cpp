@@ -278,6 +278,10 @@ bool Model::enabled(const Json& check) const {
     return true;
 }
 
+bool passesHintSignFilter(const Json& check, bool showHintSigns) {
+    const auto& categories=check.at("categories");
+    return showHintSigns || std::find(categories.begin(),categories.end(),"Hint Sign")==categories.end();
+}
 bool dungeonCheck(const Json& check) {
     const auto& cats=check.at("categories");
     return std::find(cats.begin(),cats.end(),"Dungeon")!=cats.end();

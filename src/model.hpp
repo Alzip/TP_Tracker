@@ -15,6 +15,7 @@ Truth either(Truth a, Truth b);
 std::string escape(std::string_view text);
 std::string trim(std::string text);
 bool dungeonCheck(const Json& check);
+bool passesHintSignFilter(const Json& check, bool showHintSigns);
 int checkType(const Json& check);
 size_t pageCount(size_t rows, size_t size);
 

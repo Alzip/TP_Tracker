@@ -114,6 +114,7 @@ bool dirty = true, allChecks = false, hideCompleted = false;
 bool engineDirty = false;
 bool seedRefreshPending = false;
 int statusFilters[2]{};
+bool showHintSigns[2]{true,true};
 tracker::PreferenceStore preferences;
 uint64_t revision = 1, renderedRevision = 0;
 void previousPage(ModContext*,void*) { if (checkPage) { --checkPage; ++revision; } }
@@ -750,6 +751,7 @@ std::string checksRml() {
         bool complete = model.obtained.contains(name);
         if (complete) ++done;
         if ((!allChecks && !model.inArea(check)) || (hideCompleted && complete)) continue;
+        if (!tracker::passesHintSignFilter(check,showHintSigns[allChecks])) continue;
         auto lower = name;
         std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
         if (!needle.empty() && lower.find(needle) == std::string::npos) continue;
@@ -798,7 +800,7 @@ std::string checksRml() {
         stickRow=std::clamp(stickRow,0,std::max(0,static_cast<int>(visibleRows)-1));
         svc_ui->elem_focus(mod_ctx,visibleRows ? checkRows[stickRow] : pageControl);
     }
-    if (shown == 0) rml += "<div class='tp-note'>No matching checks for " + tracker::escape(allChecks ? "All Checks" : model.stage) + ". Check the status filter, Filter checks text and Hide completed checks setting.</div>";
+    if (shown == 0) rml += "<div class='tp-note'>No matching checks for " + tracker::escape(allChecks ? "All Checks" : model.stage) + ". Check the status filter, Show hint signs toggle, Filter checks text and Hide completed checks setting.</div>";
     return rml;
 }
 void navigateStick() {
@@ -846,6 +848,11 @@ void savePreference(T& target,const V& value) {
 }
 void statusGet(ModContext*, void*, UiControlValue* v) { v->int_value = statusFilters[allChecks]; }
 void statusSet(ModContext*, void*, const UiControlValue* v) { checkPage = 0; savePreference(statusFilters[allChecks],v->int_value); ++revision; }
+void hintSignsGet(ModContext*, void* data, UiControlValue* v) { v->bool_value=*static_cast<bool*>(data); }
+void hintSignsSet(ModContext*, void* data, const UiControlValue* v) {
+    savePreference(*static_cast<bool*>(data),v->bool_value);
+    checkPage=0; stickRow=-1; restorePageFocus=false; ++revision;
+}
 void sortGet(ModContext*, void*, UiControlValue* v) { v->int_value=areaSort; }
 void sortSet(ModContext*, void*, const UiControlValue* v) {
     savePreference(areaSort,v->int_value);
@@ -876,6 +883,12 @@ ModResult buildTab(ModContext*, UiWindowHandle, UiElementHandle left, UiElementH
         result=svc_ui->pane_add_control(mod_ctx,right,&sort,nullptr);
         if (result!=MOD_OK) return result;
     }
+    UiControlDesc hints=UI_CONTROL_DESC_INIT;
+    hints.kind=UI_CONTROL_TOGGLE; hints.label="Show hint signs";
+    hints.help_rml="Include hint signs in this tab's check list. Read hints remain in Notes.";
+    hints.get=hintSignsGet; hints.set=hintSignsSet; hints.user_data=&showHintSigns[allChecks];
+    result=svc_ui->pane_add_control(mod_ctx,right,&hints,nullptr);
+    if(result!=MOD_OK) return result;
     result = svc_ui->pane_add_rml(mod_ctx, right, "", &checksElement);
     if (result != MOD_OK) return result;
     result=svc_ui->pane_add_text(mod_ctx,right,"",&countElement);
@@ -1326,7 +1339,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     const auto preferenceResult=tracker::bindTrackerPreferences(preferences,{
         hideCompleted,tracker::mapEnabled,tracker::minimapEnabled,
         tracker::mapAccessibleOnly,tracker::minimapAccessibleOnly,tracker::showCheckInfoHint,
-        tracker::mapTypes,tracker::minimapTypes,statusFilters,areaSort,search});
+        tracker::mapTypes,tracker::minimapTypes,statusFilters,showHintSigns,areaSort,search});
     if(preferenceResult!=MOD_OK) return mods::set_error(error,preferenceResult,"TPTracker filter preferences could not be restored");
     ResourceBuffer buffer = RESOURCE_BUFFER_INIT;
     if (svc_resource->load(mod_ctx, "catalogue.json", &buffer) != MOD_OK)
