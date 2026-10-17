@@ -18,9 +18,10 @@ inline bool markerMilestoneVisible(const Model& state, const std::string& name) 
 inline bool mapCheckVisible(const Model& state, const Json& check, bool accessibleOnly) {
     const auto& categories=check.at("categories");
     const auto name=check.at("name").get<std::string>();
-    // Keep this sign in the tracker and read-hint journal, but off both maps.
+    // Hint signs remain in checklists/Notes, never map markers or aggregates.
+    // Lake Hylia also contains Lanayru Spring's independently named sign.
     // The native game already draws Tears of Light / Twilit Bugs.
-    return name!="Lake Hylia Hint Sign"
+    return passesHintSignFilter(check,false)
         && std::find(categories.begin(),categories.end(),"Twilit Insect")==categories.end()
         && passesAccessibilityFilter(state,name,accessibleOnly)
         && state.enabled(check) && !state.skipped.contains(name)

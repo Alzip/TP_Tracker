@@ -19,6 +19,8 @@ bool passesHintSignFilter(const Json& check, bool showHintSigns);
 int checkType(const Json& check);
 size_t pageCount(size_t rows, size_t size);
 
+struct DungeonCheckCounts { int accessible=0, remaining=0; };
+
 // Transfer the entire solved state together without replacing live save data.
 struct LogicResult {
     std::map<std::string, Truth> accessible, events;
@@ -65,6 +67,8 @@ struct Model {
     bool matchesScene(const Json& check) const;
     bool enabled(const Json& check) const;
     int inventoryMaximum(const std::string& name) const;
+    std::string dungeonForStage(const std::string& stageName) const;
+    DungeonCheckCounts dungeonCheckCounts(const std::string& dungeon, const bool* visibleTypes = nullptr) const;
     int availableDungeonChecks(const std::string& dungeon, const bool* visibleTypes = nullptr) const;
     void solve();
     LogicResult takeLogicResult() { return {std::move(accessible),std::move(events),std::move(reached)}; }

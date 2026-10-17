@@ -1,4 +1,13 @@
-# TPTracker 0.4.43
+# TPTracker 0.4.44
+
+## 0.4.44 dungeon totals, map controls and hint markers
+
+- Adds a right-side **Dungeon checks** panel with **Accessible** and **Remaining** counts across all floors. Counts follow the seed settings, and exclude completed/skipped checks and hint signs. Marker category and accessible-only filters do not reduce these dungeon totals. **Dungeon map: Show check counts** controls visibility and is saved across restarts.
+- Keeps map Check Info input independent of the optional hint. Selection now belongs to the active map rather than a 250 ms draw timeout; unrelated draw calls cannot clear it. The **Map: Show Check Info hint (visual only)** option affects the overlay alone. Left click and RT/R2 + A/Cross still open a hovered check, and B/Esc closes its details in one press.
+- Excludes all hint-sign markers from the in-game map and minimap, including **Lake Hylia Hint Sign** and the separately named **Lanayru Spring Hint Sign** shown in the report. Tracker list toggles and read hints in Notes remain available.
+
+Release package: **TPTracker-0.4.44-multiplatform.dusk**. The existing poster and banner are retained. Automated checks cover counts, map selection with hidden hints, panel layout and saved visibility; live controller/layout validation is still needed.
+
 
 ## 0.4.43 hint sign filters and updated artwork
 

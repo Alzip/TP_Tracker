@@ -46,11 +46,11 @@ ConfigService config=[] {
     return s;
 }();
 struct Settings {
-    bool hide=false,map=false,mini=false,mapAccess=false,miniAccess=false,hint=false;
+    bool hide=false,map=false,mini=false,mapAccess=false,miniAccess=false,hint=false,summary=false;
     bool mapTypes[10]{},miniTypes[10]{},hintSigns[2]{};
     int statuses[2]{},sort=0;
     std::string search;
-    PreferenceTargets targets() { return {hide,map,mini,mapAccess,miniAccess,hint,mapTypes,miniTypes,statuses,hintSigns,sort,search}; }
+    PreferenceTargets targets() { return {hide,map,mini,mapAccess,miniAccess,hint,summary,mapTypes,miniTypes,statuses,hintSigns,sort,search}; }
 };
 void bind(PreferenceStore& store,Settings& settings) {
     store.initialize(&config,nullptr);
@@ -61,11 +61,13 @@ int main() {
     try {
         Settings first; PreferenceStore store;
         bind(store,first);
-        require(disk.size()==32,"some filter preferences are unregistered");
+        require(disk.size()==33,"some filter preferences are unregistered");
         require(writes==0,"startup overwrote saved preferences with defaults");
         require(first.map && first.mini && !first.hide && !first.mapAccess && !first.miniAccess,"wrong clean-install defaults");
         for(int i=0;i<10;++i) require(first.mapTypes[i] && first.miniTypes[i],"a category is hidden by default");
         require(first.sort==1 && first.statuses[0]==0 && first.statuses[1]==0,"wrong default dropdown values");
+        require(first.summary,"dungeon counts should be visible by default");
+        require(store.set(first.summary,false)==MOD_OK && first.hint && first.map,"hiding dungeon counts changed inspection or markers");
         require(first.hintSigns[0] && first.hintSigns[1],"hint signs should be listed by default in both tabs");
         require(store.set(first.hintSigns[0],false)==MOD_OK && first.hintSigns[1],"Current Area hint filter changed All Checks");
         require(store.set(first.hint,false)==MOD_OK,"hidden hint preference failed");
@@ -92,6 +94,11 @@ int main() {
         bind(restarted,second);
         require(writes==0,"restoring preferences rewrote host config");
         require(!second.hint,"hidden map hint reset after restart");
+        require(!second.summary,"dungeon panel visibility reset after restart");
+        require(restarted.set(second.summary,true)==MOD_OK && !second.hint,"showing counts reenabled keybind hint");
+        require(restarted.set(second.hint,true)==MOD_OK && second.summary,"hint changed dungeon panel");
+        require(restarted.set(second.summary,false)==MOD_OK && second.hint,"panel disabled the hint");
+        require(restarted.set(second.hint,false)==MOD_OK,"hint restore failed");
         require(!second.hintSigns[0] && second.hintSigns[1],"per-tab hint sign filters reset after restart");
         require(restarted.set(second.hintSigns[1],false)==MOD_OK && !second.hintSigns[0],"All Checks hint filter changed Current Area");
         require(restarted.set(second.hintSigns[0],true)==MOD_OK && !second.hintSigns[1],"reenabling Current Area hints changed All Checks");
@@ -118,6 +125,6 @@ int main() {
         Settings invalid; PreferenceStore again;
         bind(again,invalid);
         require(invalid.statuses[1]==0 && invalid.sort==1 && invalid.search.empty(),"invalid saved selections did not fall back safely");
-        std::cout << "Validated 32 persisted preferences, restart restoration, independent filters, defaults and failed writes.\n";
+        std::cout << "Validated 33 persisted preferences, restart restoration, independent filters, defaults and failed writes.\n";
     } catch(const std::exception& e) { std::cerr << e.what() << '\n'; return 1; }
 }

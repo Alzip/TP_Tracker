@@ -667,9 +667,15 @@ int main(int argc, char** argv) {
             require(signFilters.enabled(check),"hiding hint signs must not disable their tracking");
             signFilters.accessible[name]=Truth::yes;
             for(bool accessibleOnly:{false,true})
-                require(mapCheckVisible(signFilters,check,accessibleOnly)==(name!="Lake Hylia Hint Sign"),"map/minimap hint visibility regression");
+                require(!mapCheckVisible(signFilters,check,accessibleOnly),"hint sign leaked onto a map/minimap or aggregate");
         }
         require(hintSignCount==34,"hint sign filter coverage incomplete");
+        for(const char* name:{"Lake Hylia Hint Sign","Lanayru Spring Hint Sign","Lake Lantern Cave Hint Sign"}) {
+            require(signFilters.aliases.contains(name),"map exclusion removed hint from tracker/Notes");
+            const auto& checks=signFilters.catalogue.at("checks");
+            const auto sign=std::find_if(checks.begin(),checks.end(),[&](const Json& check) { return check.at("name")==name; });
+            require(sign!=checks.end() && !mapCheckVisible(signFilters,*sign,false),"Lake Hylia hint variant leaked onto map");
+        }
         Model mapFilter;
         mapFilter.accessible={{"open",Truth::yes},{"locked",Truth::no},{"unknown",Truth::unknown}};
         for(const auto* name:{"open","locked","unknown","missing"}) {
@@ -697,6 +703,15 @@ int main(int argc, char** argv) {
         shops.solve();
         require(shops.accessible.at("Barnes Bomb Bag")!=Truth::yes,"shop access bypasses route to Kakariko");
         Model templeCounts; templeCounts.load(data);
+        for(const auto& [stage,dungeon]:std::map<std::string,std::string>{
+            {"D_MN05","Forest Temple"},{"D_MN04","Goron Mines"},{"D_MN01","Lakebed Temple"},
+            {"D_MN10","Arbiters Grounds"},{"D_MN11","Snowpeak Ruins"},{"D_MN06","Temple of Time"},
+            {"D_MN07","City in the Sky"},{"D_MN08","Palace of Twilight"},{"D_MN09","Hyrule Castle"},
+            {"D_MN01B","Lakebed Temple"},{"D_MN04A","Goron Mines"}})
+            require(templeCounts.dungeonForStage(stage)==dungeon,"dungeon summary stage mapping mismatch");
+        require(templeCounts.dungeonForStage("F_SP115").empty(),"dungeon summary appears on overworld");
+        const int forestRemaining=templeCounts.dungeonCheckCounts("Forest Temple").remaining;
+        require(forestRemaining>3 && templeCounts.dungeonCheckCounts("Forest Temple").accessible==0,"dungeon totals require solved accessibility");
         std::vector<std::string> forest;
         for (const auto& check : data.at("checks")) {
             const auto& cats=check.at("categories");
@@ -710,6 +725,7 @@ int main(int argc, char** argv) {
         require(templeCounts.availableDungeonChecks("Forest Temple")==3,"temple count includes other dungeons or hints");
         templeCounts.obtained.insert(forest[0]);
         require(templeCounts.availableDungeonChecks("Forest Temple")==2,"completed dungeon check still available");
+        require(templeCounts.dungeonCheckCounts("Forest Temple").remaining==forestRemaining-1,"completed check still in remaining total");
         templeCounts.accessible[forest[1]]=Truth::unknown;
         require(templeCounts.availableDungeonChecks("Forest Temple")==1,"unknown dungeon check counted open");
         templeCounts.accessible[forest[2]]=Truth::no;
@@ -718,6 +734,21 @@ int main(int argc, char** argv) {
         const auto inventoryBeforeSkip=templeCounts.inventory;
         require(templeCounts.toggleSkipped(forest[2]),"unfinished check cannot be skipped");
         require(templeCounts.availableDungeonChecks("Forest Temple")==0,"skipped dungeon check counted available");
+        require(templeCounts.dungeonCheckCounts("Forest Temple").remaining==forestRemaining-2,"skipped or unknown checks miscounted in remaining");
+        auto summary=templeCounts;
+        const int normal=summary.dungeonCheckCounts("Hyrule Castle").remaining;
+        summary.settings["Hidden Rupees"]="On"; summary.settings["Freestanding Rupees"]="On";
+        const auto rupees=summary.dungeonCheckCounts("Hyrule Castle");
+        require(rupees.remaining==normal,"overworld rupees leaked into dungeon totals");
+        summary.settings["Gifts From NPCs"]="Off";
+        require(summary.dungeonCheckCounts("Hyrule Castle").remaining==normal-1,"summary ignores disabled dungeon NPC rewards");
+        summary.settings["Gifts From NPCs"]="On";
+        bool noMarkers[10]{};
+        require(summary.dungeonCheckCounts("Hyrule Castle",noMarkers).remaining==0,"explicit marker filter ignored");
+        summary.stage="D_MN09"; summary.room=99;
+        require(summary.dungeonCheckCounts("Hyrule Castle").remaining==rupees.remaining,"all-floor summary follows room or hidden marker filters");
+        for(const auto& check:summary.catalogue.at("checks")) summary.obtained.insert(check.at("name"));
+        require(summary.dungeonCheckCounts("Hyrule Castle").remaining==0 && summary.dungeonCheckCounts("Hyrule Castle").accessible==0,"finished dungeon does not show zero totals");
         require(!templeCounts.obtained.contains(forest[2]) && templeCounts.inventory==inventoryBeforeSkip,"skip grants an item or marks completion");
         require(templeCounts.toggleSkipped(forest[2]) && templeCounts.availableDungeonChecks("Forest Temple")==1,"restoring skipped check failed");
         require(!templeCounts.toggleSkipped(forest[0]),"completed check can be skipped");

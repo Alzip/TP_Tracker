@@ -99,6 +99,7 @@ struct PreferenceTargets {
     bool& mapAccessibleOnly;
     bool& minimapAccessibleOnly;
     bool& showCheckInfoHint;
+    bool& showDungeonSummary;
     bool (&mapTypes)[10];
     bool (&minimapTypes)[10];
     int (&statusFilters)[2];
@@ -114,7 +115,8 @@ inline ModResult bindTrackerPreferences(PreferenceStore& store,PreferenceTargets
         if(result!=MOD_OK) return result;
     }
     for(auto entry : {std::pair{"map-markers",&t.mapEnabled},std::pair{"minimap-markers",&t.minimapEnabled},
-                     std::pair{"map-check-info-hint",&t.showCheckInfoHint}}) {
+                     std::pair{"map-check-info-hint",&t.showCheckInfoHint},
+                     std::pair{"dungeon-check-summary",&t.showDungeonSummary}}) {
         auto result=store.bind(entry.first,*entry.second,true);
         if(result!=MOD_OK) return result;
     }

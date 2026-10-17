@@ -286,8 +286,22 @@ bool dungeonCheck(const Json& check) {
     const auto& cats=check.at("categories");
     return std::find(cats.begin(),cats.end(),"Dungeon")!=cats.end();
 }
+std::string Model::dungeonForStage(const std::string& stageName) const {
+    for(const auto& check:catalogue.at("checks")) {
+        if(!dungeonCheck(check)) continue;
+        const auto& stages=check.at("stages"), categories=check.at("categories");
+        if(std::find(stages.begin(),stages.end(),stageName)==stages.end()) continue;
+        for(const char* dungeon:{"Forest Temple","Goron Mines","Lakebed Temple","Arbiters Grounds",
+                                "Snowpeak Ruins","Temple of Time","City in the Sky","Palace of Twilight","Hyrule Castle"})
+            if(std::find(categories.begin(),categories.end(),dungeon)!=categories.end()) return dungeon;
+    }
+    return {};
+}
 int Model::availableDungeonChecks(const std::string& dungeon, const bool* visibleTypes) const {
-    int count=0;
+    return dungeonCheckCounts(dungeon,visibleTypes).accessible;
+}
+DungeonCheckCounts Model::dungeonCheckCounts(const std::string& dungeon, const bool* visibleTypes) const {
+    DungeonCheckCounts counts;
     for (const auto& check : catalogue.at("checks")) {
         const auto& categories=check.at("categories");
         auto has=[&](const char* category) { return std::find(categories.begin(),categories.end(),category)!=categories.end(); };
@@ -296,9 +310,11 @@ int Model::availableDungeonChecks(const std::string& dungeon, const bool* visibl
             (visibleTypes && !visibleTypes[checkType(check)])) continue;
         const std::string name=check.at("name");
         const auto access=accessible.find(name);
-        if (!obtained.contains(name) && !skipped.contains(name) && access!=accessible.end() && access->second==Truth::yes) ++count;
+        if(obtained.contains(name) || skipped.contains(name)) continue;
+        ++counts.remaining;
+        if(access!=accessible.end() && access->second==Truth::yes) ++counts.accessible;
     }
-    return count;
+    return counts;
 }
 int checkType(const Json& check) {
     const auto& cats=check.at("categories");

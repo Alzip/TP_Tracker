@@ -1294,9 +1294,15 @@ ModResult buildSettings(ModContext*, UiElementHandle pane, void*, ModError*) {
         if(result!=MOD_OK) return result;
     }
     control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_TOGGLE;
-    control.label="Map: Show Check Info hint";
+    control.label="Map: Show Check Info hint (visual only)";
     control.help_rml="Show only the control hint. Map check information still opens with left click or RT/R2 + A/Cross when this is off.";
     control.get=typeGet; control.set=typeSet; control.user_data=&tracker::showCheckInfoHint;
+    result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+    if(result!=MOD_OK) return result;
+    control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_TOGGLE;
+    control.label="Dungeon map: Show check counts";
+    control.help_rml="Show accessible and remaining checks across all floors, using this seed's enabled checks. Completed and skipped checks are excluded. Marker category filters do not change these totals.";
+    control.get=typeGet; control.set=typeSet; control.user_data=&tracker::showDungeonSummary;
     result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
     if(result!=MOD_OK) return result;
     static const char* types[]={"Treasure chests","NPC / event rewards","Golden bugs","Poe souls","Golden wolves","Shop items","Owl statues","Grotto checks","Freestanding Rupees","Hidden Rupees"};
@@ -1338,7 +1344,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     preferences.initialize(svc_config,mod_ctx);
     const auto preferenceResult=tracker::bindTrackerPreferences(preferences,{
         hideCompleted,tracker::mapEnabled,tracker::minimapEnabled,
-        tracker::mapAccessibleOnly,tracker::minimapAccessibleOnly,tracker::showCheckInfoHint,
+        tracker::mapAccessibleOnly,tracker::minimapAccessibleOnly,tracker::showCheckInfoHint,tracker::showDungeonSummary,
         tracker::mapTypes,tracker::minimapTypes,statusFilters,showHintSigns,areaSort,search});
     if(preferenceResult!=MOD_OK) return mods::set_error(error,preferenceResult,"TPTracker filter preferences could not be restored");
     ResourceBuffer buffer = RESOURCE_BUFFER_INIT;

@@ -23,6 +23,33 @@ int main() {
   auto screen=map.screen(40,30); t.add(screen.x,screen.y,12,12,"Chest");
   require(t.hit(screen)=="Chest"); t.clear({0,0,200,150});
  }
+ int mapOwner=0,otherOwner=0;
+ MapInspectionFrame frame;
+ for(bool dungeon:{false,true}) {
+  require(frame.begin(&mapOwner,&mapOwner,dungeon,true,"stage",{0,0,200,150},{50,50}));
+  frame.targets.add(50,50,12,12,"Chest");
+  for(bool visible:{true,false,true,false}) {
+   frame.targets.setHint(visible ? std::optional<MapHitRect>{{0,0,100,20}} : std::nullopt);
+   require(frame.active(&mapOwner,dungeon,true,"stage") && frame.targets.hit(frame.cursor)=="Chest");
+   require(!frame.begin(&otherOwner,&mapOwner,!dungeon,false,"other",{},{}));
+   require(frame.active(&mapOwner,dungeon,true,"stage") && frame.targets.hit(frame.cursor)=="Chest");
+  }
+  require(!frame.active(nullptr,dungeon,true,"stage"));
+  require(!frame.active(&mapOwner,dungeon,false,"stage"));
+  require(!frame.active(&mapOwner,dungeon,true,"different scene"));
+  frame.targets.panel=MapHitRect{40,40,60,60}; require(frame.targets.hit({50,50}).empty());
+  frame.targets.panel.reset(); require(frame.targets.hit({50,50})=="Chest");
+  require(frame.begin(&mapOwner,&mapOwner,dungeon,false,"stage",{},{}));
+  require(!frame.owner && frame.targets.targets.empty());
+ }
+ for(float screenWidth:{608.f,854.f,1120.f}) {
+  MapHitRect screen{0,0,screenWidth,480},map{274,60,600,395};
+  const auto panel=dungeonSummaryBounds(map,screen);
+  require(panel.left>=0 && panel.right<=screen.right && panel.top>=104 && panel.bottom<screen.bottom);
+  require(near(panel.right-panel.left,112) && near(panel.bottom-panel.top,80));
+  if(screenWidth==608) require(panel.left>map.left && panel.right<map.right);
+  else require(panel.left>map.right);
+ }
  MapHitRect game{-123,0,731,480};
  auto center=mapMousePoint(960,540,1920,1080,1920,1080,1920,1080,game);
  require(center && near(center->x,304) && near(center->y,240));

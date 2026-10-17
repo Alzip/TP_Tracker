@@ -20,14 +20,14 @@ struct MapHitTargets {
     MapHitRect clip{};
     std::vector<Target> targets;
     // The optional hint can occlude clicks, but never owns the check targets.
-    std::optional<MapHitRect> hint;
-    void clear(MapHitRect bounds={}) { clip=bounds; targets.clear(); hint.reset(); }
+    std::optional<MapHitRect> hint, panel;
+    void clear(MapHitRect bounds={}) { clip=bounds; targets.clear(); hint.reset(); panel.reset(); }
     void setHint(std::optional<MapHitRect> bounds) { hint=bounds; }
     void add(float x,float y,float halfWidth,float halfHeight,const std::string& name) {
         targets.push_back({{x-halfWidth,y-halfHeight,x+halfWidth,y+halfHeight},name});
     }
     std::string hit(MapScreenPoint p) const {
-        if(!clip.contains(p) || (hint && hint->contains(p))) return {};
+        if(!clip.contains(p) || (hint && hint->contains(p)) || (panel && panel->contains(p))) return {};
         float closest=1e30f;
         const Target* best=nullptr;
         for(const auto& target:targets) {
@@ -41,6 +41,36 @@ struct MapHitTargets {
         return best ? best->name : std::string{};
     }
 };
+// Selection belongs to the active map, not the optional hint or a short draw
+// timeout. Ignore other renderers; zooming out or changing scenes invalidates it.
+struct MapInspectionFrame {
+    const void* owner=nullptr;
+    bool dungeon=false;
+    std::string stage;
+    MapScreenPoint cursor{};
+    MapHitTargets targets;
+    void clear() { owner=nullptr; stage.clear(); targets.clear(); }
+    bool begin(const void* drawOwner,const void* activeOwner,bool isDungeon,bool inspectable,
+               const std::string& scene,MapHitRect clip,MapScreenPoint reticle) {
+        if(!drawOwner || drawOwner!=activeOwner) return false;
+        clear(); dungeon=isDungeon; cursor=reticle;
+        if(inspectable) { owner=activeOwner; stage=scene; targets.clear(clip); }
+        return true;
+    }
+    bool active(const void* activeOwner,bool isDungeon,bool inspectable,const std::string& scene) const {
+        return owner && owner==activeOwner && dungeon==isDungeon && inspectable && stage==scene;
+    }
+};
+
+// Prefer the screen's right margin; on narrower displays stay inside the map.
+inline MapHitRect dungeonSummaryBounds(MapHitRect map,MapHitRect screen) {
+    constexpr float width=112,height=80,margin=8;
+    const float right=screen.right-margin;
+    const float left=right-map.right>=width+margin ? right-width : map.right-width-margin;
+    const float top=std::clamp(map.top+44,screen.top+104,screen.bottom-height-margin);
+    return {left,top,left+width,top+height};
+}
+
 // SDL mouse positions use logical window units. Match Aurora's letterboxed
 // presentation viewport before converting to the game's widescreen J2D space.
 inline std::optional<MapScreenPoint> mapMousePoint(float x,float y,float windowW,float windowH,

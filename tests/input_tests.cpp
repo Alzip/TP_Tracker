@@ -5,13 +5,16 @@
 #include <iostream>
 void require(bool value) { if(!value) throw std::runtime_error("input regression"); }
 namespace {
-tracker::MapHitTargets targets;
+tracker::MapInspectionFrame frame;
+tracker::MapHitTargets& targets=frame.targets;
+int owner=0,unrelated=0;
+bool dungeon=false,zoomed=true;
 tracker::MapScreenPoint controllerCursor{50,50};
 bool details=false;
 int opened=0,closed=0;
 bool handle(tracker::MapAction action,float x,float y) {
  if(action==tracker::MapAction::Dismiss) { if(!details) return false; details=false; ++closed; return true; }
- if(details) return false;
+ if(details || !frame.active(&owner,dungeon,zoomed,"stage")) return false;
  const auto p=action==tracker::MapAction::MouseClick ? tracker::MapScreenPoint{x,y} : controllerCursor;
  if(targets.hit(p).empty()) return false;
  details=true; ++opened; return true;
@@ -36,6 +39,7 @@ int main() {
  require(escapeBinding(512+SDL_SCANCODE_ESCAPE) && escapeBinding(256+27));
 
  resetInput(); setMapActionHandler(handle);
+ frame.begin(&owner,&owner,dungeon,zoomed,"stage",{0,0,100,100},controllerCursor);
  targets.clear({0,0,100,100}); targets.add(50,50,12,12,"Chest");
  auto button=[&](unsigned id,unsigned b,bool down) { e={}; e.type=down ? SDL_EVENT_GAMEPAD_BUTTON_DOWN : SDL_EVENT_GAMEPAD_BUTTON_UP; e.gbutton.which=id; e.gbutton.button=b; return processInput(e); };
  auto trigger=[&](unsigned id,int value) { e={}; e.type=SDL_EVENT_GAMEPAD_AXIS_MOTION; e.gaxis.which=id; e.gaxis.axis=SDL_GAMEPAD_AXIS_RIGHT_TRIGGER; e.gaxis.value=value; return processInput(e); };
@@ -65,8 +69,12 @@ int main() {
  // Overworld and temple renderers share these hit targets and the same
  // optional hint. Both controller event orders and mouse remain available
  // across visibility changes, including restoring a hidden hint at startup.
- for(bool showHint:{false,true,false}) {
+ for(bool temple:{false,true}) for(bool showHint:{false,true,false}) {
+  dungeon=temple; zoomed=true;
+  frame.begin(&owner,&owner,dungeon,zoomed,"stage",{0,0,100,100},{50,50});
+  targets.add(50,50,12,12,"Chest");
   resetInput(); details=false; controllerCursor={50,50};
+  require(!frame.begin(&unrelated,&owner,!dungeon,false,"other",{},{}));
   targets.setHint(showHint ? std::optional<MapHitRect>{{0,0,100,20}} : std::nullopt);
   require(targets.hit(controllerCursor)=="Chest");
   require(!button(3,SDL_GAMEPAD_BUTTON_SOUTH,true));
@@ -88,6 +96,9 @@ int main() {
   require(!trigger(3,25000)); // no check under cursor when completing chord
   controllerCursor={50,50}; require(!trigger(3,26000)); // moving a held chord onto a check is not a press
  }
+ zoomed=false; resetInput();
+ require(!click(50,50,SDL_BUTTON_LEFT,true));
+ click(50,50,SDL_BUTTON_LEFT,false); zoomed=true;
  targets.clear(); // closing/zooming out/filtering removes rendered hit regions
  require(!click(50,50,SDL_BUTTON_LEFT,true));
  e={};e.type=SDL_EVENT_WINDOW_FOCUS_LOST;processInput(e);

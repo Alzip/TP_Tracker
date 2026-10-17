@@ -9,6 +9,7 @@ void setMapCheckHandler(MapCheckHandler handler,bool (*closeHandler)());
 bool mapInspectionActive();
 extern bool mapEnabled;
 extern bool showCheckInfoHint;
+extern bool showDungeonSummary;
 extern bool mapAccessibleOnly, minimapAccessibleOnly;
 extern bool mapAvailable;
 extern bool minimapEnabled, minimapAvailable;
