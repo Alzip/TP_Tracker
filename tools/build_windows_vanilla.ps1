@@ -1,11 +1,13 @@
 # Build the unofficial vanilla-support tracker on an existing Windows C++ setup.
 # Prerequisites: Git, Python 3.10+, CMake >= 3.26, and Visual Studio 2022 with
-# "Desktop development with C++" (including its Windows SDK).
+# "Desktop development with C++" (including its Windows SDK), plus
+# "C++ Clang Compiler for Windows" and "MSBuild support for LLVM (clang-cl) toolset".
 # This script does not install Visual Studio or accept Microsoft license terms.
 [CmdletBinding()]
 param(
     [string]$Generator = "Visual Studio 17 2022",
-    [string]$BuildDirectory = "build-windows-vanilla"
+    [string]$Toolset = "ClangCL",
+    [string]$BuildDirectory = "build-windows-vanilla-clangcl"
 )
 
 Set-StrictMode -Version Latest
@@ -68,9 +70,12 @@ try {
     finally {
         $HostZip.Dispose()
     }
+    # clang-cl keeps the SDK's section-only metadata via __attribute__((used)).
+    # It uses the same MSVC ABI/import library; symgen remains the release gate.
     Invoke-Checked -Program $CMakePath -Arguments @(
         "-S", $ProjectRoot, "-B", $BuildDirectory,
-        "-G", $Generator, "-A", "x64", "-DBUILD_TESTING=ON", "-DDUSK_GAME_EXE=$HostLibrary"
+        "-G", $Generator, "-A", "x64", "-T", $Toolset,
+        "-DBUILD_TESTING=ON", "-DDUSK_GAME_EXE=$HostLibrary"
     )
     Invoke-Checked -Program $CMakePath -Arguments @(
         "--build", $BuildDirectory, "--config", "Release", "--parallel", "3"
@@ -128,6 +133,8 @@ try {
         target_host_archive_sha256 = $HostArchiveHash
         sdk_revision = $DependencyPins.revision
         platform = "windows-amd64"
+        generator = $Generator
+        toolset = $Toolset
         built_at_utc = [DateTime]::UtcNow.ToString("o")
         validation = @("CTest passed", "asset tests passed", "symgen native metadata verified")
         gameplay_tested = $false
