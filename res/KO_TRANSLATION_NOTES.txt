@@ -1,0 +1,118 @@
+일반 게임 공략의 사실관계 검토 — 2026-10-24
+
+적용 리소스: res/ko.json
+범위: 11개 항목, 21개 문단. 영문 canonical key와 원본 문단 수 유지.
+이 검토는 공략 표시 문구만 대상으로 하며, 위치 데이터·아이템 배치·논리 조건·그룹 분류는 변경하지 않는다.
+
+1. Castle Town Malo Mart Magic Armor — 확인됨
+
+마로마트의 성 시내 지점 개점 후 598루피에 매직 아머를 판매한다. 기존 설명의 이전 점주를 '조반니의 이웃'으로 지칭한 부분은 진행 안내에 필요하지 않고 근거가 불분명하여 삭제했다. 그 인물 관계에 대한 대체 주장은 추가하지 않았다.
+
+독립 공략 작성자의 직접 공략:
+https://www.zeldadungeon.net/twilight-princess-walkthrough/scaling-snowpeak-wii/
+이 공략은 마로마트 개점 과정 뒤 매직 아머 가격을 598루피로 명시한다.
+
+2. Castle Town Goron Shop Arrow Refill — 확인됨
+
+별도의 고론 상점에서 계단을 올라가 바깥 전망대 발코니의 큰 고론에게 구매한다. 화살은 30발에 40루피다. 마로마트 지점 안에서 구매하는 것으로 오해하지 않도록 수정했다.
+
+공식 Prima HD 공략, Task 5의 'Goron Trading Post':
+https://primagames.com/eguides/the-legend-of-zelda-twilight-princess-hd-eguide/overworld-thorough-explorations-and-saving-the-zora-prince/task-5-thoroughly-explore-castle-town-and-southern-field
+고론 상점은 중앙 광장 주변의 아치형 출입문과 계단으로 들어가며, 위층 전망대의 큰 고론이 화살 30발을 40루피에 판매한다고 안내한다. 아래층과 계단 위 작은 고론들의 물품은 서로 다르다.
+
+공식 Prima Wii 공략도 동일한 상점 구조와 가격을 확인한다:
+https://primagames.com/eguides/the-legend-of-zelda-twilight-princess-wii-eguide/walkthrough/walkthrough/overworld-thorough-explorations-and-saving-the-zora-prince
+
+주의: HD 일반 배치에서는 중앙 광장 남서쪽, 좌우가 반전된 Wii 배치에서는 남동쪽으로 설명되어 있다. 교정문은 버전 차이로 혼동하지 않도록 동서 방향을 생략하고 중앙 광장, 계단, 바깥 전망대로 안내한다.
+
+3. Jovani 60 Poe Soul Reward — 확인됨; 최초 보상과 반복 보상을 구분
+
+60개 수집 후의 최초 200루피 보상은 조반니가 직접 준다. 고양이 Gengle의 반복 보상과 혼동하면 안 된다. 원래 조반니를 지급자로 쓴 부분은 맞으며, 이를 고양이로 교체해서는 안 된다. 교정문은 두 보상의 차이를 간단히 설명한다.
+
+공식 Prima Wii 공략, Palace of Twilight 이후 조반니/고양이 방문:
+https://primagames.com/eguides/the-legend-of-zelda-twilight-princess-wii-eguide/walkthrough/walkthrough/dungeon-8-palace-of-twilight
+60개를 모아 조반니에게 말하면 정상 모습으로 돌아오고 은색 루피 200루피를 받는다. 이후 조반니가 집을 떠나 테르마의 주점에 있는 순서와, 고양이가 주는 추가 은색 루피를 별도로 설명한다.
+
+공식 Prima HD 공략도 동일하게 구분한다:
+https://primagames.com/eguides/the-legend-of-zelda-twilight-princess-hd-eguide/overworld-assembling-the-mirror-of-twilight/task-3-collect-all-remaining-poe-souls-meet-jovani-and-gengle
+HD 전용 스탬프 내용은 이번 일반 게임 교정문에 포함하지 않았다.
+
+로컬 게임/체크 메타데이터 보조 근거:
+- res/catalogue.json의 해당 체크 플래그는 14368, 즉 0x3820이다.
+- randomizer/src/flags.h에서 0x3820은 TALKED_TO_JOVANI_AFTER_COLLECTING_60_POE_SOULS로 명명되어 있다.
+- 게임의 고양이 액터 d_a_npc_ne.cpp는 Gengle의 특정 대화에서 dItemNo_SILVER_RUPEE_e를 별도로 생성한다. 이것은 이후 고양이 보상이 별도임을 뒷받침한다.
+
+고정 리비전의 소스:
+https://github.com/TwilitRealm/dusklight-randomizer/blob/d0ceae8f18bbef4a40287a72a2791a3c06c9aca5/src/flags.h
+https://github.com/TwilitRealm/dusklight/blob/9d66cf24489ee74bff29009136421cb449abd04d/src/d/actor/d_a_npc_pouya.cpp
+https://github.com/TwilitRealm/dusklight/blob/9d66cf24489ee74bff29009136421cb449abd04d/src/d/actor/d_a_npc_ne.cpp
+
+4. Lost Woods Waterfall Poe / Sacred Grove Master Sword Poe / Sacred Grove Female Snail — 확인됨
+
+성스러운 숲 두 번째 방문의 접근 경로는 설산의 저택 이후 모이(Rusl)와 황금 꼬꼬 경로다. 유적에서는 마스터 소드를 받침대에 사용해 시간의 문을 연다. 카피봉은 다음 던전인 시간의 신전에서 얻으므로, 이 세 수집물에 카피봉을 선행 조건으로 적는 것은 잘못이다.
+
+직접 공략의 순서와 위치 설명:
+https://www.zeldadungeon.net/twilight-princess-walkthrough/sacred-grove-round-two/
+- 스컬 키드를 쫓는 두 번째 방문 중 폭포 뒤 턱에서 고스트를 수집한다.
+- 마스터 소드를 얻었던 받침대 구역에서 밤에 고스트를 수집한다.
+- 받침대에 마스터 소드를 사용하고 시간의 문을 통과한 뒤, 계단을 내려가 오른쪽으로 돌아 벽의 달팽이 암컷을 질풍의 부메랑으로 가져온다.
+
+카피봉 획득은 다음 장의 던전 진행 중이다:
+https://www.zeldadungeon.net/twilight-princess-walkthrough/temple-of-time/
+
+공식 Prima의 황금 꼬꼬 접근 설명:
+https://primagames.com/eguides/the-legend-of-zelda-twilight-princess-hd-eguide/overworld-return-to-the-sacred-grove/task-2-find-the-golden-cucco
+
+교정문은 새로 확인한 진입 방식만 간결하게 반영했다. 모이 등장에 필요한 세부 이벤트 플래그를 추측해서 추가하지 않았다.
+
+5. Eldin Field Stalfos Grotto Left Small Chest / Right Small Chest / Stalfos Chest — 진입 경로 확인됨
+
+올딘대교에서 북쪽으로 가 작은 나무다리를 건너고, 북쪽 벽의 스피너 레일을 타고 내려가 둥근 풀밭을 늑대 링크로 파는 경로가 맞다. 기존 라넬 평원이라는 문구 대신 이 구체적 경로로 수정했다.
+
+직접 공략:
+https://www.zeldadungeon.net/twilight-princess-walkthrough/scaling-snowpeak/
+이 공략은 위 진입 경로를 설명하고, 동굴 안의 스탈포스 3마리를 쓰러뜨린 뒤 폭탄으로 마무리하면 하트 조각 상자가 나타나는 순서를 설명한다.
+
+좌우 풀숲의 작은 상자 설명은 원래 공략 내용을 유지했다. 이번 검토에서 좌우 위치를 독립적인 지도나 실제 플레이로 새로 측정하지는 않았다.
+
+로컬 세계 메타데이터:
+.deps/dusklight/mods/randomizer/generator/data/world/overworld/Eldin Province.yaml의 Eldin Field Grotto Platform / Eldin Field Stalfos Grotto는 Map Sector: Eldin Province, Region: North Eldin으로 분류되어 있으며, 플랫폼 진입은 Spinner, 동굴 진입은 Can_Dig이다.
+https://github.com/TwilitRealm/dusklight-randomizer/blob/d0ceae8f18bbef4a40287a72a2791a3c06c9aca5/generator/data/world/overworld/Eldin%20Province.yaml
+
+남아 있는 데이터 불일치: res/catalogue.json의 표시 그룹은 Hyrule Field - Lanayru Province이다. 그룹명과 실제 진입 지역 설명이 다르다. 이번 교정은 공략 문구만 수정하며 그룹명/ID/지도 메타데이터 변경을 제안하거나 수행하지 않는다.
+
+6. Zoras Domain Shortcut Upper Boulder Rupee — 로컬 위치 좌표로 지지되는 제한적 교정
+
+원문은 Upper와 Lower 양쪽 모두 낮은 바위라고 설명했다. res/positions.json의 같은 F_SP113 / room 1 좌표에서 Upper의 Y는 -659.6610717773438, Lower의 Y는 -1048.6497802734375다. Upper 쪽이 더 높은 위치이므로 Upper 공략만 높은 위치의 바위로 수정했다.
+
+이는 로컬 좌표와 항목 이름을 함께 사용한 추론이며, 독립적인 실제 플레이나 공략 그림으로 직접 확인한 결과는 아니다. 새 동서남북 방향은 추가하지 않았다.
+
+로컬 소스:
+res/positions.json
+.deps/dusklight/mods/randomizer/generator/data/locations.yaml
+
+7. Zoras Domain North Underwater Boulder Rupee — 원문 모순 미해결, 단정 대신 명시
+
+항목 이름은 North지만 기존 안내는 southern boulder를 가리킨다. 기존 소스에 명시된 위키 페이지 조회가 HTTP 500으로 실패했고, 지도 방향을 확정할 충분한 독립 근거를 확보하지 못했다.
+
+조회 실패한 원문 출처(검증된 웹 근거로 사용하지 않음):
+https://wiki.tprandomizer.com/index.php?title=List_of_Randomizer_Checks#Hidden_Rupees
+
+따라서 임의로 북쪽 또는 남쪽이라고 고치지 않았다. 한국어 표시에는 원문의 남북 방향이 항목 이름과 일치하지 않는다고 알리고, 해당 지도 표시를 확인하도록 안내했다. 좌표 축의 부호만으로 방향을 추측하지 않았다.
+
+이 두 조라 루피 항목은 현재 일반 게임 모드에서는 숨겨지는 랜덤마이저 루피 항목이므로, 일반 게임 진행에 즉각 영향을 주는 수정은 아니다.
+
+검증 결과
+
+guide-corrections.json에는 위 11개 canonical key만 포함되며, 각 키는 원본 res/check_guides.json에 존재한다. 원본과 문단 수가 같고 모든 교정 문단은 비어 있지 않은 한국어 문자열이다. 이 교정안은 res/ko.json에 반영했다. 원본 영문 공략과 canonical key는 변경하지 않았다.
+
+추가 교정
+
+차를로의 기부 보상은 일반 게임 기준 총 1,000루피로 바로잡았다.
+근거: https://primagames.com/eguides/the-legend-of-zelda-twilight-princess-wii-eguide/walkthrough/walkthrough/overworld-thorough-explorations-and-saving-the-zora-prince
+
+황금 늑대 공략에서는 울음의 돌에서 늑대 모습으로 우는 과정과, 이후 황금 늑대를 만나 검술을 배우는 과정을 구분했다. 기존 영문에 반복된 '황금 늑대에게 늑대 형태로 접근해야 한다'는 문구를 제거했다.
+
+표시 이름은 canonical 키와 분리했다. Fused Shadow는 '어둠의 결정석', Shadow Crystal은 '그림자 결정석'으로 구분했다. 장소 이름의 Inside/Outside/On/Before와 시간의 문을 통한 과거(Sacred Grove Past)를 검토했으며, 조건식의 and/or와 수량·괄호는 표현만 번역했다.
+
+한국어 인명·적 이름 일부는 음역 또는 설명이다. 전체 용어가 한국어 정식판과 일치한다는 주장은 하지 않는다. 사용자가 작성한 메모, 기록한 힌트 원문, 게임 자체의 대사와 지명 배너는 이 번역 리소스의 범위 밖이다.
