@@ -1,9 +1,9 @@
 {
   "id": "com.mikey022.tp_randomizer_tracker",
   "name": "TPTracker",
-  "version": "0.4.44+vanilla.2.ko1",
+  "version": "0.4.44+vanilla.2.ko2",
   "author": "mikey022",
-  "description": "Unofficial normal-game support with partial Korean menus and Kakariko/Death Mountain guides for Dusklight 2.0.3.",
+  "description": "Unofficial normal-game support with Korean tracker guides, names, requirements and map overlays for Dusklight 2.0.3.",
   "icon": "res/Poster.png",
   "banner": "res/Banner.png",
   "abi": 1,

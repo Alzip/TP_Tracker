@@ -1,4 +1,4 @@
-# TPTracker 0.4.44+vanilla.2.ko1 (unofficial normal-game patch)
+# TPTracker 0.4.44+vanilla.2.ko2 (unofficial normal-game patch)
 
 This patch targets **Dusklight 2.0.3 on Windows x64** and adds an explicit
 **Normal game (no randomizer)** option in
@@ -35,7 +35,7 @@ in [Alzip/TP_Tracker](https://github.com/Alzip/TP_Tracker).
 3. After the run succeeds, open its summary and download the
    **TPTracker-normal-game-windows-x64** artifact under **Artifacts**.
 4. Extract the download and install
-   `TPTracker-0.4.44+vanilla.2.ko1-windows-amd64.dusk` in Dusklight 2.0.3.
+   `TPTracker-0.4.44+vanilla.2.ko2-windows-amd64.dusk` in Dusklight 2.0.3.
    Keep only one installed copy of TPTracker. Enable
    **F1 > Mods > TPTracker > Normal game (no randomizer)** after loading the save.
 
@@ -56,39 +56,46 @@ The local tests include synthetic Kakariko save-state inputs for the first wolf
 visit in twilight, human access after Eldin twilight is cleared, Barnes's native
 post-Goron-Mines shop opening, and local equipment restrictions. They do not run
 Dusklight or load the player's save.
-Live Kakariko gameplay and the complete normal-game story remain to be verified.
+The player confirmed that the preceding `0.4.44+vanilla.2.ko1` build works in
+Dusklight 2.0.3. This is user-reported validation of that build, not a full-game
+playthrough or live validation of every new localized overlay.
 
-### Partial Korean support
+### Korean support
 
-Korean is enabled by default in this build. It includes **169 UI strings, 194
-presentation names and 55 collection guides (73 paragraphs)** for Kakariko
-Village, Kakariko Graveyard and Death Mountain. The translated data also includes
-local twilight insects and randomizer-only rupee/sign checks; normal mode still
-hides checks that do not apply. Kakariko Gorge and other untranslated guide
-bodies remain English, with a visible fallback notice.
+Korean is enabled by default. The resource covers **all 658 catalogue guides
+(1,080 paragraphs)**, all check names, inventory items, 564 logical areas,
+stage labels, logic helpers and discovered-entrance names. The source includes
+randomizer-only rupee/sign entries; normal mode continues to hide those checks.
+An original missing-description placeholder remains an explicit notice, and
+ambiguous original directions are identified rather than guessed.
 
-The separate [Korean resource](res/ko.json) changes presentation only. Catalogue
-keys, logic expressions, save records, selections and personal notes remain
-unchanged. The check filter accepts both English and translated Korean names.
-Raw advanced logic and native game-map labels remain English in this first pass.
+The separate [Korean resource](res/ko.json) changes presentation only. Canonical
+catalogue keys, solver expressions, save records and selections remain English
+internally. Check and discovered-entrance searches accept English and Korean.
+Requirement displays translate AND/OR, item names, events and settings while
+preserving grouping and required numbers. User notes and captured hint text
+remain exactly as recorded.
 
-The **Korean (partial; restart to apply)** option in F1 > Mods > TPTracker is
-remembered across restarts. Turn it off and restart Dusklight to return to English.
-If the translation or font cannot be prepared, the tracker keeps its English UI.
+The **Korean (restart to apply)** option in F1 > Mods > TPTracker is remembered.
+Turn it off and restart Dusklight to return to English. Invalid resources fall
+back to English without disabling normal-game tracking.
 
 The bundle includes the unmodified **Nanum Gothic** regular font under the
-[SIL Open Font License](res/fonts/OFL.txt); its [provenance](res/fonts/PROVENANCE.txt)
-includes the exact source and checksum. The mod extracts this font to its own
-host-provided directory and registers a fallback face through the public UI
-style API. No separate font installation or Dusklight rebuild is required.
+[SIL Open Font License](res/fonts/OFL.txt), with [provenance](res/fonts/PROVENANCE.txt).
+Tracker windows use an RmlUi fallback face. The tracker's native map tooltips,
+control hint and dungeon totals use a pre-rendered glyph atlas from the same
+font, with measured Unicode wrapping. This does not replace the game's own
+menus, dialogue or native place-name banner. No separate font installation or
+Dusklight rebuild is needed.
 
-An isolated probe using the exact RmlUi revision bundled with Dusklight 2.0.3
-verified `@font-face`, UTF-8 paths and Hangul fallback rendering with FreeType.
-This is UI-engine verification, not a live test with the player's game and save;
-in-game layout, scrolling and input still need that final check. Sources: the
-[host font setup](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/src/dusk/ui/ui.cpp),
-[public UI service](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h),
-and exact [RmlUi font-face parser](https://github.com/encounter/RmlUi/blob/f00a0fee38391b2f927114e11bea18dc0a7dba1e/Source/Core/StyleSheetParser.cpp).
+The atlas is generated by `python tools/build_map_font.py` (Pillow and fontTools required only
+for regeneration). Rebuild it after changing localized names or UI strings.
+Portable tests check coverage, UTF-8 layout, texture bounds and safe fallback;
+Windows CI compiles and packages the checked-in atlas, with no Pillow or fontTools runtime
+dependency. Any new map rendering still requires live confirmation in the game.
+
+The original English guide data and source credits are preserved. Translation
+clarifications are documented in [한국어 적용 안내](NORMAL_GAME_KO.md).
 
 ## Upstream 0.4.44 notes
 
