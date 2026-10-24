@@ -1,4 +1,4 @@
-# TPTracker 0.4.44+vanilla.1 (unofficial normal-game patch)
+# TPTracker 0.4.44+vanilla.2.ko1 (unofficial normal-game patch)
 
 This patch targets **Dusklight 2.0.3 on Windows x64** and adds an explicit
 **Normal game (no randomizer)** option in
@@ -35,7 +35,7 @@ in [Alzip/TP_Tracker](https://github.com/Alzip/TP_Tracker).
 3. After the run succeeds, open its summary and download the
    **TPTracker-normal-game-windows-x64** artifact under **Artifacts**.
 4. Extract the download and install
-   `TPTracker-0.4.44+vanilla.1-windows-amd64.dusk` in Dusklight 2.0.3.
+   `TPTracker-0.4.44+vanilla.2.ko1-windows-amd64.dusk` in Dusklight 2.0.3.
    Keep only one installed copy of TPTracker. Enable
    **F1 > Mods > TPTracker > Normal game (no randomizer)** after loading the save.
 
@@ -58,18 +58,37 @@ post-Goron-Mines shop opening, and local equipment restrictions. They do not run
 Dusklight or load the player's save.
 Live Kakariko gameplay and the complete normal-game story remain to be verified.
 
-Korean menus, check names and collection guides are feasible as a separate
-display layer; the English keys used by logic and saved tracker records must
-remain stable. The guide resource has 658 entries and 1,080 paragraphs. No
-Korean translation is included in this patch. Dusklight 2.0.3's bundled UI fonts
-lack Hangul glyphs. Its exact RmlUi fork supports RCSS `@font-face`, so a mod can
-extract a bundled Korean TTF into its own writable directory and load it through
-the existing style API. Source inspection does not indicate a host rebuild is
-needed. Actual Hangul rendering, wrapping and scrolling still need a small
-in-game probe; native map labels use a separate renderer and need a separate check.
-See the [font setup](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/src/dusk/ui/ui.cpp)
-and [public UI service](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h),
-and the exact [RmlUi font-face parser](https://github.com/encounter/RmlUi/blob/f00a0fee38391b2f927114e11bea18dc0a7dba1e/Source/Core/StyleSheetParser.cpp).
+### Partial Korean support
+
+Korean is enabled by default in this build. It includes **169 UI strings, 194
+presentation names and 55 collection guides (73 paragraphs)** for Kakariko
+Village, Kakariko Graveyard and Death Mountain. The translated data also includes
+local twilight insects and randomizer-only rupee/sign checks; normal mode still
+hides checks that do not apply. Kakariko Gorge and other untranslated guide
+bodies remain English, with a visible fallback notice.
+
+The separate [Korean resource](res/ko.json) changes presentation only. Catalogue
+keys, logic expressions, save records, selections and personal notes remain
+unchanged. The check filter accepts both English and translated Korean names.
+Raw advanced logic and native game-map labels remain English in this first pass.
+
+The **Korean (partial; restart to apply)** option in F1 > Mods > TPTracker is
+remembered across restarts. Turn it off and restart Dusklight to return to English.
+If the translation or font cannot be prepared, the tracker keeps its English UI.
+
+The bundle includes the unmodified **Nanum Gothic** regular font under the
+[SIL Open Font License](res/fonts/OFL.txt); its [provenance](res/fonts/PROVENANCE.txt)
+includes the exact source and checksum. The mod extracts this font to its own
+host-provided directory and registers a fallback face through the public UI
+style API. No separate font installation or Dusklight rebuild is required.
+
+An isolated probe using the exact RmlUi revision bundled with Dusklight 2.0.3
+verified `@font-face`, UTF-8 paths and Hangul fallback rendering with FreeType.
+This is UI-engine verification, not a live test with the player's game and save;
+in-game layout, scrolling and input still need that final check. Sources: the
+[host font setup](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/src/dusk/ui/ui.cpp),
+[public UI service](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h),
+and exact [RmlUi font-face parser](https://github.com/encounter/RmlUi/blob/f00a0fee38391b2f927114e11bea18dc0a7dba1e/Source/Core/StyleSheetParser.cpp).
 
 ## Upstream 0.4.44 notes
 
