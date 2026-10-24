@@ -1,0 +1,33 @@
+Nanum Gothic Regular — Korean UI font for TPTracker
+
+The bundled NanumGothic-Regular.ttf is an unmodified static TrueType font from
+the official Google Fonts repository. The full original SIL Open Font License
+1.1 and copyright notice are preserved in OFL.txt in this directory.
+
+Upstream: https://github.com/google/fonts/tree/133ccbee9a8b408eb71f31a36ccb9116f5c695ad/ofl/nanumgothic
+Font: https://raw.githubusercontent.com/google/fonts/133ccbee9a8b408eb71f31a36ccb9116f5c695ad/ofl/nanumgothic/NanumGothic-Regular.ttf
+License: https://raw.githubusercontent.com/google/fonts/133ccbee9a8b408eb71f31a36ccb9116f5c695ad/ofl/nanumgothic/OFL.txt
+Retrieved: 2026-10-24
+
+Font file: NanumGothic-Regular.ttf
+Size: 2054744 bytes
+SHA-256: 76f45ef4a6bcff344c837c95a7dcc26e017e38b5846d5ae0cdcb5b86be2e2d31
+Version in font: Version 3.020;PS 1;hotconv 1.0.57;makeotf.lib2.0.21895
+Family in font: NanumGothic
+Original copyright: Copyright (c) 2010, NHN Corporation
+Designer credited by upstream metadata: Sandoll Communication
+
+License file: OFL.txt
+SHA-256: eeacf16032901d0ed0456876ec77b8f0fda6b3fecec7d972f8543eb602e6c30f
+
+Coverage verified with fontTools cmap inspection:
+- All 11,172 modern precomposed Hangul syllables, U+AC00 through U+D7A3.
+- 93 of 94 Hangul Compatibility Jamo, U+3131 through U+318E (U+3164 is absent).
+- The separate Hangul Jamo block U+1100 through U+11FF is absent; localized
+  Korean strings should use normal precomposed/NFC Hangul.
+- No variable-font table; this is the complete static font, not a web subset.
+
+The mod copies this resource to its own host-provided cache directory, then
+registers a TPTrackerKorean alias and a fallback face with RmlUi @font-face.
+The font file and its embedded family name are not modified. Host font files
+are not replaced. Native game-map JUT fonts are outside this UI font path.
