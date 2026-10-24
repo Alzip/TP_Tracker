@@ -46,7 +46,8 @@ SHA-256 file identifying the package and source revision. Check the
 of each revision. A successful build still requires gameplay validation.
 
 Developers with a Windows C++ toolchain can instead run
-`tools/build_windows_vanilla.ps1`; see the Korean guide for prerequisites.
+`tools/build_windows_vanilla.ps1`; this uses Visual Studio's **ClangCL** toolset
+to retain the SDK's native metadata records. See the Korean guide for prerequisites.
 Linux binaries from the development environment are not Windows packages.
 
 ## Verification and Korean localization

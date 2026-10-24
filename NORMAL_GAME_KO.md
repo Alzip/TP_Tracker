@@ -130,6 +130,7 @@ GitHub Actions 대신 PC에서 직접 빌드할 개발자를 위한 방법입니
 - Python 3.10 이상
 - CMake 3.26 이상 (`cmake`, `ctest`)
 - Visual Studio 2022의 **C++를 사용한 데스크톱 개발** 구성 요소와 Windows SDK
+- Visual Studio 설치 관리자의 **Windows용 C++ Clang 컴파일러**와 **MSBuild용 LLVM(Clang-cl) 도구 집합** 구성 요소
 
 소스 폴더에서 PowerShell로 실행합니다.
 
@@ -142,6 +143,8 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\tools\build_windows_vanill
 최초 실행에는 인터넷 연결이 필요하며, 게임 디스크 이미지는 필요하지 않습니다.
 성공 시 파일은 `dist/TPTracker-0.4.44+vanilla.1-windows-amd64.dusk`에 생성됩니다.
 다른 Visual Studio 버전을 쓰면 CMake가 지원하는 생성기 이름을 `-Generator`로 지정할 수 있습니다.
+기본 도구 집합은 `ClangCL`입니다. 이 SDK의 모드 식별 정보가 최적화 중 사라지지 않도록
+Clang으로 빌드하며, 최종 패키지의 식별 정보 검증도 반드시 통과해야 합니다.
 
 ## 직접 코드 검토 / 적용
 
