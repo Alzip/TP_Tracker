@@ -22,6 +22,7 @@ Json fixture() {
             {"Area access: ", "지역 접근: "}, {"Local requirement: ", "현장 조건: "},
             {"No additional items required.", "추가 아이템이 필요하지 않습니다."},
             {"Sources: ", "출처: "}, {"Obtained: ", "획득 수: "}, {"Starting inventory", "시작 아이템"},
+            {"and", "그리고"}, {"or", "또는"},
             {"Collection directions are unavailable for this check.", "이 항목의 공략은 없습니다."},
             {"Guide text is shown in English; a Korean translation is not yet available.", "미번역 공략은 영어로 표시합니다."},
             {"Collection guide only. The requirements on the left use normal-game story progress and inventory.", "왼쪽 조건은 일반 게임의 진행 상황과 아이템을 사용합니다."},
@@ -29,7 +30,10 @@ Json fixture() {
         }},
         {"names", {
             {"Barnes Bomb Bag", "반즈의 폭탄주머니"}, {"Kakariko Village", "카카리코 마을"},
-            {"Progressive Sword", "검 강화"}, {"Link's & Bag", "링크의 <가방> & 물건"}
+            {"Progressive Sword", "검 강화"}, {"Link's & Bag", "링크의 <가방> & 물건"},
+            {"Ball and Chain", "체인 해머"}, {"Human Link", "인간 링크"}, {"count", "필요 수량"},
+            {"Can Pull Blocks", "블록 끌기 가능"}, {"Skip Prologue", "프롤로그 건너뛰기"}, {"On", "켜짐"},
+            {"Skip Midna's Desperate Hour", "미드나 구출 과정 건너뛰기"}
         }},
         {"guides", {{"Barnes Bomb Bag", {{"steps", Json::array({"반즈에게 <폭탄> & \"주머니\"를 받으세요."})}}}}}
     };
@@ -77,6 +81,21 @@ int main(int argc, char** argv) {
         require(locale.rml(unchanged) == unchanged, "broad replacement changed unknown prose, logic or entity");
         require(locale.rml("<div title='OPEN") == "<div title='OPEN", "malformed tag was rewritten");
         require(source == fixture(), "localization mutated source keys");
+        require(locale.logic("(Ball_and_Chain or count(Progressive_Sword, 2)) and Human_Link") ==
+                "(체인 해머 또는 필요 수량(검 강화, 2)) 그리고 인간 링크",
+                "logic display split an item containing and or changed grouping/counts");
+        require(locale.logic("'Can_Pull_Blocks' and Skip_Prologue == On") ==
+                "'블록 끌기 가능' 그리고 프롤로그 건너뛰기 == 켜짐",
+                "event or setting expression failed to translate");
+        require(locale.logic("Skip_Midna's_Desperate_Hour == On or ('Can_Pull_Blocks' and Human_Link)") ==
+                "미드나 구출 과정 건너뛰기 == 켜짐 또는 ('블록 끌기 가능' 그리고 인간 링크)",
+                "an apostrophe inside a setting name was mistaken for an event quote");
+        require(locale.logic("Future_Helper and count(Unknown_Item, 12)") ==
+                "Future Helper 그리고 필요 수량(Unknown Item, 12)", "unknown logic atoms or counts were lost");
+        locale.setEnabled(false);
+        require(locale.logic("Ball_and_Chain and Human_Link") == "Ball and Chain and Human Link",
+                "English logic display changed when Korean is disabled");
+        locale.setEnabled(true);
 
         for (int scenario = 0; scenario < 10; ++scenario) {
             auto malformed = source;
@@ -138,18 +157,43 @@ int main(int argc, char** argv) {
         catalogueInput >> catalogue; localeInput >> shippedLocale; guidesInput >> shippedGuides;
         locale.load(shippedLocale); locale.setEnabled(true); guides.load(shippedGuides);
         Model model; model.load(catalogue);
+        require(shippedLocale.at("guides").size() == shippedGuides.at("checks").size(),
+                "shipped Korean resource does not cover every guide");
+        auto named = [&](const std::string& name) { return shippedLocale.at("names").contains(name); };
+        for(const auto& check:catalogue.at("checks")) {
+            const auto name=check.at("name").get<std::string>();
+            require(named(name) && shippedLocale.at("guides").contains(name), "check name or guide is untranslated");
+        }
+        for(const auto& area:catalogue.at("areas")) {
+            require(named(area.at("Name")), "area name is untranslated");
+            if(area.contains("Events")) for(const auto& [name,unused]:area.at("Events").items())
+                require(named(name), "logic event is untranslated");
+        }
+        for(const auto& [unused,name]:catalogue.at("stage_labels").items()) require(named(name), "stage label is untranslated");
+        for(const auto& [name,unused]:catalogue.at("macros").items()) require(named(name), "logic macro is untranslated");
+        for(const auto& item:catalogue.at("items")) require(named(item.at("Name")), "item name is untranslated");
+        for(const auto& edge:catalogue.at("entrance_edges")) for(const auto* key:{"label","id","target"})
+            require(named(edge.at(key)), "entrance display name is untranslated");
         const auto aliases = model.aliases;
         const auto normalizedCatalogue = model.catalogue;
         for (const auto& [canonical, guide] : shippedLocale.at("guides").items()) {
             require(model.aliases.contains(canonical) && model.aliases.at(canonical) == canonical,
                     "translated guide key is not a canonical catalogue ID");
             require(!join(guides.blocks(canonical, &locale, true)).empty(), "shipped translated guide failed to render");
+            require(guide.at("steps").size()==shippedGuides.at("checks").at(canonical).at("steps").size(),
+                    "localized guide dropped or merged a source paragraph");
         }
         const std::string check = "Barnes Bomb Bag";
         const auto original = model.checkDetails(check, false);
         const auto rendered = locale.rml(original);
         require(rendered.find(locale.nameLookup(check)) != std::string::npos && model.aliases == aliases && model.catalogue == normalizedCatalogue,
                 "localizing real details changed catalogue or alias routes");
+        model.loadVanilla();
+        const auto before=model.evaluate("Human_Link and Vanilla_Barnes_Shop_Open");
+        const auto custom=model.checkDetails(check,false,[](std::string_view value) { return "<display>"+std::string(value); });
+        require(custom.find("&lt;display&gt;")!=std::string::npos &&
+                before==model.evaluate("Human_Link and Vanilla_Barnes_Shop_Open") && model.aliases==aliases,
+                "display formatter injected markup or changed logic/IDs");
         require(locale.nameLookup(check) != check && !model.give(locale.nameLookup(check)) && model.give(check) && model.obtained.contains(check),
                 "display name replaced the canonical completion key");
         require(model.checkDetails(check, false).find("DONE") != std::string::npos && !model.obtained.contains(locale.nameLookup(check)),
