@@ -1,8 +1,6 @@
 name: TPTracker platforms
 on:
   workflow_dispatch:
-  push:
-    paths-ignore: ['**.md']
 permissions:
   contents: read
 jobs:
