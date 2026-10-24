@@ -77,7 +77,10 @@ struct Model {
     void applyLogicResult(LogicResult result) {
         accessible=std::move(result.accessible); events=std::move(result.events); reached=std::move(result.reached);
     }
-    std::string checkDetails(const std::string& name, bool advanced = true) const;
+    // Optional formatter is display-only; evaluation and saved IDs always use
+    // the original expression. Preserve underscores until the formatter lexes it.
+    using LogicDisplay = std::string (*)(std::string_view);
+    std::string checkDetails(const std::string& name, bool advanced = true, LogicDisplay formatLogic = nullptr) const;
     std::string itemHistory(const std::string& name) const;
     std::string entranceDestination(const std::string& parent, const std::string& vanilla) const;
     Truth evaluate(std::string expression, int form = 0, std::set<std::string> stack = {}) const;

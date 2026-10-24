@@ -2,7 +2,8 @@
 #include "model.hpp"
 #include <mods/api.h>
 namespace tracker {
-ModResult initializeMap(Model* model);
+class Localization;
+ModResult initializeMap(Model* model, const Localization* locale = nullptr);
 void shutdownMap();
 using MapCheckHandler = bool (*)(const std::string&);
 void setMapCheckHandler(MapCheckHandler handler,bool (*closeHandler)());

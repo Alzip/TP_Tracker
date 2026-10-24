@@ -38,11 +38,12 @@ static std::string checkRequirement(const std::string& name, const std::string& 
     }
     return requirement;
 }
-std::string Model::checkDetails(const std::string& name, bool advanced) const {
+std::string Model::checkDetails(const std::string& name, bool advanced, LogicDisplay formatLogic) const {
     const Json* selected = nullptr;
     for (const auto& check : catalogue.at("checks")) if (check.at("name") == name) { selected = &check; break; }
     if (!selected) return "<div>Check no longer available.</div>";
     auto label = [](Truth value) { return value == Truth::yes ? "OPEN" : value == Truth::no ? "LOCKED" : "UNKNOWN"; };
+    auto displayLogic = [&](const std::string& expression) { return formatLogic ? formatLogic(expression) : words(expression); };
     const auto status = accessible.find(name);
     std::string state = obtained.contains(name) ? "DONE" : skipped.contains(name) ? "SKIPPED" : status == accessible.end() ? "UNKNOWN" : label(status->second);
     std::string out = "<div class='tp-title'>" + escape(name) + "</div><div class='tp-state " + state + "'>" + state + " | " + escape(selected->value("group", "Other")) + "</div>";
@@ -56,7 +57,7 @@ std::string Model::checkDetails(const std::string& name, bool advanced) const {
         if (found == reached.end()) reach = result = Truth::unknown;
         else for (int f=0; f<5; ++f) { reach=either(reach,found->second[f]); result=either(result,both(found->second[f],evaluate(requirement,f))); }
         if(shuffled && !entrancesComplete && reach==Truth::no) reach=result=Truth::unknown;
-        out += "<div class='tp-group'>" + escape(area) + " — " + label(result) + "</div><div>Area access: " + label(reach) + "</div><div>Local requirement: " + (requirement=="Nothing" ? std::string("No additional items required.") : escape(words(requirement))) + "</div>";
+        out += "<div class='tp-group'>" + escape(area) + " — " + label(result) + "</div><div>Area access: " + label(reach) + "</div><div>Local requirement: " + (requirement=="Nothing" ? std::string("No additional items required.") : escape(displayLogic(requirement))) + "</div>";
         expressions += " " + words(requirement);
         if (reach != Truth::yes) out += "<div class='tp-note'>" + std::string(reach==Truth::no ?
             (normalGame ? "You cannot currently reach this area with the tracked inventory and native story progress." :
@@ -72,7 +73,7 @@ std::string Model::checkDetails(const std::string& name, bool advanced) const {
             if (shown.size()>=48 || shown.contains(macro) || expressions.find(words(macro))==std::string::npos) continue;
             shown.insert(macro); added=true;
             const auto definition=words(scalar(value));
-            if(advanced) out += "<div class='tp-group'>" + escape(words(macro)) + "</div><div>" + escape(definition) + "</div>";
+            if(advanced) out += "<div class='tp-group'>" + escape(words(macro)) + "</div><div>" + escape(displayLogic(scalar(value))) + "</div>";
             expressions += " " + definition;
         }
         // Persistent local actions (clawshot first, transform afterward) are
@@ -82,7 +83,7 @@ std::string Model::checkDetails(const std::string& name, bool advanced) const {
                 if(shown.size()>=48 || shown.contains(event) || expressions.find(words(event))==std::string::npos) continue;
                 shown.insert(event); added=true;
                 const auto definition=words(scalar(value)); expressions+=" "+definition;
-                if(advanced) out+="<div class='tp-group'>"+escape(words(event))+"</div><div>"+escape(definition)+"</div>";
+                if(advanced) out+="<div class='tp-group'>"+escape(words(event))+"</div><div>"+escape(displayLogic(scalar(value)))+"</div>";
             }
         if (!added) break;
     }

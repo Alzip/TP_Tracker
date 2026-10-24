@@ -1,5 +1,6 @@
 #pragma once
 #include "model.hpp"
+#include <algorithm>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
@@ -123,6 +124,55 @@ public:
     std::string nameLookup(std::string_view canonicalName) const {
         const auto* value = lookup("names", canonicalName);
         return value ? *value : std::string(canonicalName);
+    }
+    // Lex the original logic before expanding underscores: Ball_and_Chain is
+    // one item, whereas "A and B" contains a conjunction. This function is
+    // deliberately separate from rml(), so notes and arbitrary prose are never
+    // rewritten as expressions. Parentheses, operators, quotes and numbers keep
+    // their original order and are escaped by the caller when embedded in RML.
+    std::string logic(std::string_view expression) const {
+        auto atom = [&](std::string_view value) {
+            std::string words(value);
+            std::replace(words.begin(), words.end(), '_', ' ');
+            if (!enabled()) return words;
+            const auto start = words.find_first_not_of(" \t\r\n");
+            if (start == std::string::npos) return words;
+            const auto end = words.find_last_not_of(" \t\r\n") + 1;
+            const auto* translated = textLookup(std::string_view(words).substr(start, end-start));
+            return translated ? words.substr(0,start) + *translated + words.substr(end) : words;
+        };
+        if (!enabled()) return atom(expression);
+        std::string result;
+        size_t begin = 0;
+        bool quoted = false;
+        for (size_t pos = 0; pos < expression.size();) {
+            // Midna's is part of a setting name, not a quoted event. Only an
+            // apostrophe at the start of an atom opens an event quotation.
+            if (expression[pos] == '\'' &&
+                (quoted || expression.substr(begin,pos-begin).find_first_not_of(" \t\r\n")==std::string_view::npos)) {
+                result += atom(expression.substr(begin,pos-begin));
+                result += '\''; quoted = !quoted; begin = ++pos; continue;
+            }
+            size_t length = 0;
+            std::string replacement;
+            if (!quoted) {
+                const auto tail = expression.substr(pos);
+                if (tail.starts_with(" and ") || tail.starts_with(" or ")) {
+                    length = tail.starts_with(" and ") ? 5 : 4;
+                    replacement = " " + stringLookup(length == 5 ? "and" : "or") + " ";
+                } else if (tail.starts_with("==") || tail.starts_with("!=") || tail.starts_with(">=") || tail.starts_with("<=")) {
+                    length = 2; replacement = std::string(tail.substr(0,2));
+                } else if (expression[pos] == '(' || expression[pos] == ')' || expression[pos] == ',') {
+                    length = 1; replacement = expression[pos];
+                }
+            }
+            if (length) {
+                result += atom(expression.substr(begin,pos-begin));
+                result += replacement; pos += length; begin = pos;
+            } else ++pos;
+        }
+        result += atom(expression.substr(begin));
+        return result;
     }
     bool match(std::string_view canonicalName, std::string_view needle) const {
         const auto query = lowerAscii(needle);

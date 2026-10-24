@@ -86,7 +86,11 @@ ModResult addControl(UiElementHandle pane,const UiControlDesc* source,UiElementH
     std::vector<const char*> options;
     if(source->options && source->option_count) {
         labels.reserve(source->option_count); options.reserve(source->option_count);
-        for(size_t i=0;i<source->option_count;++i) labels.push_back(uiText(source->options[i]));
+        for(size_t i=0;i<source->option_count;++i) {
+            auto text=uiText(source->options[i]);
+            if(text==source->options[i]) text=uiName(text);
+            labels.push_back(std::move(text));
+        }
         for(const auto& option:labels) options.push_back(option.c_str());
         desc.options=options.data();
     }
@@ -193,6 +197,15 @@ std::string search;
 std::string status = "Select this save's spoiler log in F1 > Mods > TPTracker.";
 std::string displayedStatus() {
     auto text=uiText(status);
+    if(status.starts_with("Seed: ")) {
+        auto seed=status.substr(6);
+        constexpr std::string_view selected=" (selected save)";
+        if(seed.ends_with(selected))
+            text=uiText("Seed: ")+seed.substr(0,seed.size()-selected.size())+uiText(selected);
+        else text=uiText("Seed: ")+seed;
+    } else if(status.starts_with("Logic unavailable: ")) {
+        text=uiText("Logic unavailable: ")+status.substr(19);
+    }
     if(koreanRequestedAtLaunch && (!koreanFontAvailable || !localization.available()))
         text+="\nKorean font or translation resource is unavailable; English is active.";
     return text;
@@ -284,7 +297,8 @@ ModResult updateDetail(ModContext*,void*,ModError*) {
         setControlTooltip(detailButton,skipped ? "Undo skipped check?" : "Hide this check from the maps until restored.");
     }
     if(detailToggle) setControlLabel(detailToggle,detailAdvanced ? "Hide full logic" : "Show full logic");
-    const auto markup=localization.rml(model.checkDetails(selectedCheck,detailAdvanced));
+    const auto markup=localization.rml(model.checkDetails(selectedCheck,detailAdvanced,
+        [](std::string_view expression) { return localization.logic(expression); }));
     if(markup==detailMarkup) return MOD_OK;
     detailMarkup=markup;
     // Each generated div gets a small focus anchor. The SDK scrolls focused
@@ -1169,23 +1183,31 @@ void navigateEntrances() {
 ModResult updateEntrances(ModContext*,void*,ModError*) {
     if(renderedRevision!=revision) {
         auto result=renderInventory(); if(result!=MOD_OK) return result;
-        const auto view=tracker::entranceJournalView(model,entranceSearch);
+        // The model reveals only visited connections. Localized search filters
+        // that same revealed set and never searches undiscovered seed routes.
+        auto view=tracker::entranceJournalView(model,"");
+        const auto query=tracker::trim(entranceSearch);
+        if(!query.empty()) std::erase_if(view.entries,[&](const auto& entry) {
+            return !localization.match(entry.source,query) && !localization.match(entry.destination,query);
+        });
         entrancePageCount=tracker::pageCount(view.entries.size(),pageSize);
         entrancePage=std::min(entrancePage,entrancePageCount-1);
         entranceVisibleRows=std::min(pageSize,view.entries.size()-entrancePage*pageSize);
         std::string heading="<div class='tp-title'>Discovered entrances</div><div class='tp-note'>Connections appear after you use them. Save your game to keep this journal. Each direction is recorded separately. Search entrance names or destinations. Right stick: up/down scrolls this page.</div>";
-        heading+="<div>"+std::to_string(view.entries.size())+" matching / "+std::to_string(view.discovered)+" discovered | Page "+std::to_string(entrancePage+1)+" / "+std::to_string(entrancePageCount)+"</div>";
+        heading+="<div>"+tracker::escape(uiFormat("{matching} matching / {discovered} discovered | Page {page} / {pages}",
+            {{"matching",std::to_string(view.entries.size())},{"discovered",std::to_string(view.discovered)},
+             {"page",std::to_string(entrancePage+1)},{"pages",std::to_string(entrancePageCount)}}))+"</div>";
         if(model.settings.value("Decouple Entrances",Json("Off"))=="On") heading+="<div class='tp-note'>Decoupled entrances: the return trip can lead somewhere else.</div>";
         if(!model.entrancesComplete) heading+="<div class='tp-note'>Keep this save's spoiler log and seed.dat together to resolve all entrance connections.</div>";
         if(view.discovered==0) heading+="<div class='tp-note'>No entrances recorded yet. Previously visited routes cannot be reconstructed from the spoiler log; use an entrance to record it.</div>";
         else if(view.entries.empty()) heading+="<div class='tp-note'>No discovered entrances match this search. Clear the search to show all discoveries.</div>";
-        svc_ui->elem_set_rml(mod_ctx,entranceHeading,heading.c_str());
+        svc_ui->elem_set_rml(mod_ctx,entranceHeading,localization.rml(heading).c_str());
         for(size_t i=0;i<entranceRows.size();++i) {
             const bool visible=i<entranceVisibleRows;
             svc_ui->elem_set_visible(mod_ctx,entranceRows[i],visible);
             if(visible) {
                 const auto& entry=view.entries[entrancePage*pageSize+i];
-                const auto text="<div class='tp-group'>"+tracker::escape(entry.source)+"</div><div>Leads to: "+tracker::escape(entry.destination)+"</div>";
+                const auto text="<div class='tp-group'>"+tracker::escape(uiName(entry.source))+"</div><div>"+tracker::escape(uiText("Leads to: "))+tracker::escape(uiName(entry.destination))+"</div>";
                 svc_ui->elem_set_rml(mod_ctx,entranceRowText[i],text.c_str());
             }
         }
@@ -1389,8 +1411,8 @@ ModResult buildSettings(ModContext*, UiElementHandle pane, void*, ModError*) {
     auto result = addControl( pane, &control, nullptr);
     if (result != MOD_OK) return result;
     control=UI_CONTROL_DESC_INIT;
-    control.kind=UI_CONTROL_TOGGLE; control.label="Korean (partial; restart to apply)";
-    control.help_rml="Translate tracker menus and Kakariko/Death Mountain guides. Restart Dusklight after changing this option. Untranslated text stays in English.";
+    control.kind=UI_CONTROL_TOGGLE; control.label="Korean (restart to apply)";
+    control.help_rml="Translate tracker menus, guides, location names and requirement displays. Restart Dusklight after changing this option.";
     control.get=koreanGet; control.set=koreanSet;
     result=addControl(pane,&control,nullptr);
     if(result!=MOD_OK) return result;
@@ -1555,7 +1577,7 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     if (result != MOD_OK) return mods::set_error(error, result, "TPTracker switch hook failed");
     result = mods::hook::add_post<ChestHook>(onEngineChanged);
     if (result != MOD_OK) return mods::set_error(error, result, "TPTracker chest hook failed");
-    result = tracker::initializeMap(&model);
+    result = tracker::initializeMap(&model,&localization);
     if (result != MOD_OK) mods::log::warn("TPTracker: dMenu_Fmap2DBack_c::draw hook failed ({}); checklist remains available", static_cast<int>(result));
     else mods::log::info("TPTracker: native map draw hook installed");
     mods::log::info("TPTracker: minimap hooks {}", tracker::minimapAvailable ? "installed" : "unavailable");

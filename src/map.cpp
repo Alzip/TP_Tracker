@@ -2,6 +2,8 @@
 #include "map_positions.hpp"
 #include "map_projection.hpp"
 #include "map_interaction.hpp"
+#include "map_text.hpp"
+#include "localization.hpp"
 #include "controller.hpp"
 #include <mods/svc/ui.h>
 #include <aurora/aurora.h>
@@ -21,6 +23,7 @@
 #include <JSystem/J2DGraph/J2DPrint.h>
 #include <JSystem/J2DGraph/J2DGrafContext.h>
 #include <JSystem/J2DGraph/J2DOrthoGraph.h>
+#include <JSystem/JUtility/JUTFont.h>
 #include <cmath>
 #include <algorithm>
 #include <optional>
@@ -47,6 +50,146 @@ bool mapTypes[checkTypeCount] = {true,true,true,true,true,true,true,true,true,tr
 bool minimapTypes[checkTypeCount] = {true,true,true,true,true,true,true,true,true,true};
 namespace {
 Model* state = nullptr;
+const Localization* mapLocale = nullptr;
+MapFontAtlas mapFont;
+struct MapLabel { std::string english, translated; };
+bool koreanMap() { return mapLocale && mapLocale->enabled(); }
+MapLabel mapString(std::string_view english) {
+    return {std::string(english), koreanMap() ? mapLocale->stringLookup(english) : std::string{}};
+}
+MapLabel checkLabel(const std::string& name, Truth access, bool done = false) {
+    const std::string status = done ? "DONE" : access == Truth::yes ? "OPEN" : access == Truth::no ? "LOCKED" : "UNKNOWN";
+    MapLabel result{"[" + status + "] " + name, {}};
+    if (koreanMap()) {
+        const auto translated = mapLocale->nameLookup(name);
+        if (translated != name) result.translated = "[" + mapLocale->stringLookup(status) + "] " + translated;
+    }
+    return result;
+}
+std::string mapFormat(std::string value, std::initializer_list<std::pair<std::string_view, std::string>> fields) {
+    for (const auto& [key, replacement] : fields) {
+        const std::string token = "{" + std::string(key) + "}";
+        size_t pos = 0;
+        while ((pos = value.find(token, pos)) != std::string::npos) { value.replace(pos, token.size(), replacement); pos += replacement.size(); }
+    }
+    return value;
+}
+MapLabel groupLabel(const std::string& name, int available, int remaining, int completed) {
+    constexpr std::string_view format = "{label} - {available} / {remaining} available ({completed} completed)";
+    auto formatWith = [&](std::string value, const std::string& label) {
+        return mapFormat(std::move(value), {{"label", label}, {"available", std::to_string(available)},
+                         {"remaining", std::to_string(remaining)}, {"completed", std::to_string(completed)}});
+    };
+    MapLabel result{formatWith(std::string(format), name), {}};
+    if (koreanMap()) {
+        const auto translated = mapLocale->nameLookup(name);
+        if (translated != name) result.translated = formatWith(mapLocale->stringLookup(format), translated);
+    }
+    return result;
+}
+MapLabel templeLabel(const std::string& name, int available) {
+    constexpr std::string_view format = "{dungeon} - {available} checks available";
+    auto formatWith = [&](std::string value, const std::string& label) {
+        return mapFormat(std::move(value), {{"dungeon", label}, {"available", std::to_string(available)}});
+    };
+    MapLabel result{formatWith(std::string(format), name), {}};
+    if (koreanMap()) {
+        const auto translated = mapLocale->nameLookup(name);
+        if (translated != name) result.translated = formatWith(mapLocale->stringLookup(format), translated);
+    }
+    return result;
+}
+struct PreparedMapText {
+    MapTextLayout layout;
+    bool atlas = false;
+    float sizeX = 0, sizeY = 0;
+};
+std::optional<PreparedMapText> prepareMapText(const MapLabel& label, float nativeX, float nativeY,
+                                            float koreanSize, float width, size_t lines = 1) {
+    const auto choice = chooseMapText(mapFont, koreanMap(), label.english, label.translated);
+    if (choice.atlas) {
+        if (auto layout = mapFont.layout(choice.text, koreanSize, width, lines))
+            return PreparedMapText{std::move(*layout), true, koreanSize, koreanSize};
+    }
+    auto* font = mDoExt_getMesgFont();
+    if (!font || font->getCellWidth() <= 0) return {};
+    // Dynamic names are canonical English. Reject malformed UTF-8 and never
+    // send a Korean UTF-8 byte sequence to the game's legacy English font.
+    std::string english;
+    const auto decoded = mapCodepoints(label.english);
+    if (!decoded) return {};
+    for (const auto& cp : *decoded) english += cp.value < 128 ? char(cp.value) : '?';
+    auto layout = layoutMapText(english, width, lines, [&](uint32_t cp) -> std::optional<float> {
+        if (cp > 126) return {};
+        return float(font->isFixed() ? font->getFixedWidth() : font->getWidth(int(cp))) * nativeX / font->getCellWidth();
+    });
+    if (!layout) return {};
+    return PreparedMapText{std::move(*layout), false, nativeX, nativeY};
+}
+void drawMapText(J2DGrafContext* graf, const PreparedMapText& prepared, float left, float baseline,
+                 float leading, JUtility::TColor ink) {
+    // J2DPicture objects belong to the current render heap. Keep them on the
+    // stack and destroy them before restoring the caller's GX descriptors.
+    struct Restore { J2DGrafContext* graf; ~Restore() { graf->setup2D(); } } restore{graf};
+    graf->setup2D();
+    if (!prepared.atlas) {
+        auto* font = mDoExt_getMesgFont();
+        if (!font) return;
+        J2DPrint text(font, ink, ink); text.setFontSize(prepared.sizeX, prepared.sizeY);
+        for (size_t line = 0; line < prepared.layout.lines.size(); ++line)
+            text.print(left, baseline + leading * line, 255, "%s", prepared.layout.lines[line].text.c_str());
+        return;
+    }
+    std::optional<J2DPicture> pictures[4];
+    const auto& pages = mapFont.pages();
+    const float scale = prepared.sizeY / mapFont.fontSize();
+    for (size_t line = 0; line < prepared.layout.lines.size(); ++line) {
+        float x = left;
+        const auto decoded = mapCodepoints(prepared.layout.lines[line].text);
+        if (!decoded) return;
+        for (const auto& cp : *decoded) {
+            const auto* glyph = mapFont.glyph(cp.value);
+            if (!glyph) return; // prepareMapText validated the complete string.
+            if (glyph->width && glyph->height) {
+                auto& picture = pictures[glyph->page];
+                if (!picture) {
+                    picture.emplace(reinterpret_cast<const ResTIMG*>(pages[glyph->page].bytes.data()));
+                    picture->setBlackWhite(JUtility::TColor(0,0,0,0), ink);
+                }
+                const auto quad = mapGlyphQuad(*glyph, pages[glyph->page], x, baseline + leading * line, scale);
+                picture->drawOut(JGeometry::TBox2<f32>(quad.left, quad.top, quad.right, quad.bottom),
+                    JGeometry::TBox2<f32>(quad.textureLeft, quad.textureTop, quad.textureRight, quad.textureBottom));
+            }
+            x += glyph->advance * scale;
+        }
+    }
+}
+void loadMapFont() {
+    mapFont.clear();
+    if (!koreanMap()) return;
+    auto read = [](const char* path, size_t maximum) -> std::optional<std::vector<unsigned char>> {
+        ResourceBuffer buffer = RESOURCE_BUFFER_INIT;
+        if (svc_resource->load(mod_ctx, path, &buffer) != MOD_OK) return {};
+        struct Release { ResourceBuffer* buffer; ~Release() { svc_resource->free(mod_ctx, buffer); } } release{&buffer};
+        if (!buffer.data || !buffer.size || buffer.size > maximum) return {};
+        const auto* bytes = static_cast<const unsigned char*>(buffer.data);
+        return std::vector<unsigned char>(bytes, bytes + buffer.size);
+    };
+    try {
+        const auto manifestBytes = read("fonts/map-ko.json", 2 * 1024 * 1024);
+        if (!manifestBytes) return;
+        const auto manifest = Json::parse(manifestBytes->begin(), manifestBytes->end());
+        const auto resources = MapFontAtlas::resourcePaths(manifest);
+        if (!resources) return;
+        std::vector<std::vector<unsigned char>> pages;
+        for (const auto& path : *resources) {
+            auto bytes = read(path.c_str(), 32 + 1024 * 1024 * 4);
+            if (!bytes) return;
+            pages.push_back(std::move(*bytes));
+        }
+        (void)mapFont.load(manifest, std::move(pages));
+    } catch (...) { mapFont.clear(); }
+}
 MapCheckHandler checkHandler=nullptr;
 bool (*closeCheckHandler)()=nullptr;
 MapInspectionFrame inspection;
@@ -99,21 +242,29 @@ std::optional<MapHitRect> inspectionHint(J2DGrafContext* graf,float left,float t
     if(!showCheckInfoHint) return {};
     bool visible=true;
     if(!inspectionContext() || svc_ui->is_any_document_visible(mod_ctx,&visible)!=MOD_OK || visible) return {};
-    auto* font=mDoExt_getMesgFont(); if(!font) return {};
     const auto point=hoverPoint();
     const bool selected=point && !targets.hit(*point).empty();
     auto fill=[&](float x,float y,float w,float h,JUtility::TColor color) { graf->setup2D(); J2DFillBox(x,y,w,h,color); };
     float mouseX=0,mouseY=0;
     const bool mouse=readMousePosition(mouseX,mouseY);
-    const float width=mouse ? 138.f : 181.f;
+    auto button=prepareMapText(mapString(mouse ? "Left click" : "RT/R2"),8,10,12,150);
+    auto info=prepareMapText(mapString("Check Info"),8,10,12,150);
+    auto plus=prepareMapText(mapString("+"),8,10,12,20);
+    auto cross=prepareMapText(mapString("A/Cross"),8,10,12,90);
+    if(!button || !info || !plus || !cross) return {};
+    auto textWidth=[](const PreparedMapText& text) { return text.layout.lines.empty() ? 0.f : text.layout.lines[0].width; };
+    const float firstWidth=std::ceil(textWidth(*button))+6;
+    const float crossLeft=left+5+firstWidth+5+textWidth(*plus)+5;
+    const float crossWidth=std::ceil(textWidth(*cross))+6;
+    const float infoLeft=mouse ? left+5+firstWidth+9 : crossLeft+crossWidth+9;
+    const float width=infoLeft-left+std::ceil(textWidth(*info))+8;
     fill(left,top,width,22,JUtility::TColor(20,18,12,220));
-    fill(left+5,top+4,mouse ? 56.f : 32.f,14,JUtility::TColor(75,72,53,240));
-    if(!mouse) fill(left+49,top+4,49,14,JUtility::TColor(75,72,53,240));
+    fill(left+5,top+4,firstWidth,14,JUtility::TColor(75,72,53,240));
+    if(!mouse) fill(crossLeft,top+4,crossWidth,14,JUtility::TColor(75,72,53,240));
     const JUtility::TColor ink=selected ? JUtility::TColor(255,234,132,255) : JUtility::TColor(220,215,195,255);
-    J2DPrint text(font,ink,ink); text.setFontSize(8,10);
-    text.print(left+8,top+14,255,mouse ? "Left click" : "RT/R2");
-    if(!mouse) { text.print(left+40,top+14,255,"+"); text.print(left+52,top+14,255,"A/Cross"); }
-    text.print(left+(mouse ? 70 : 107),top+14,255,"Check Info");
+    drawMapText(graf,*button,left+8,top+15,0,ink);
+    if(!mouse) { drawMapText(graf,*plus,left+5+firstWidth+5,top+15,0,ink); drawMapText(graf,*cross,crossLeft+3,top+15,0,ink); }
+    drawMapText(graf,*info,infoLeft,top+15,0,ink);
     // The hint itself is not a check and must not click through to an icon.
     graf->setup2D();
     return MapHitRect{left,top,left+width,top+22};
@@ -295,7 +446,7 @@ void draw(ModContext*, void* args, void*, void*) {
         }
         return;
     }
-    std::string hovered;
+    MapLabel hovered;
     bool hoverDone = false;
     JUtility::TColor hoverColor(255,255,255,255);
     float closest = 24.f * 24.f;
@@ -365,7 +516,7 @@ void draw(ModContext*, void* args, void*, void*) {
                     const float distance = dx*dx+dy*dy;
                     if (distance < closest) {
                         closest = distance; hoverDone = done; hoverColor = color;
-                        hovered = std::string(done ? "[DONE] " : access == Truth::yes ? "[OPEN] " : access == Truth::no ? "[LOCKED] " : "[UNKNOWN] ") + name;
+                        hovered = checkLabel(name,access,done);
                     }
                 }
             }
@@ -422,7 +573,7 @@ void draw(ModContext*, void* args, void*, void*) {
         float dx=x-cursor.x,dy=y-cursor.y,distance=dx*dx+dy*dy;
         if (distance<closest) {
             closest=distance;hoverDone=done;hoverColor=color;
-            hovered=std::string(done?"[DONE] ":access==Truth::yes?"[OPEN] ":access==Truth::no?"[LOCKED] ":"[UNKNOWN] ")+name;
+            hovered=checkLabel(name,access,done);
         }
     }
     for (const auto& [key,group]:interiors) {
@@ -460,9 +611,9 @@ void draw(ModContext*, void* args, void*, void*) {
             closest=distance;hoverDone=done;hoverColor=color;
             if (remaining==1) {
                 const auto last=std::find_if(group.checks.begin(),group.checks.end(),[](const auto& name) { return !state->obtained.contains(name); });
-                hovered=std::string(group.available ? "[OPEN] " : group.unknown ? "[UNKNOWN] " : "[LOCKED] ")+*last;
+                hovered=checkLabel(*last,group.available ? Truth::yes : group.unknown ? Truth::unknown : Truth::no);
             } else {
-                hovered=group.label+" - "+std::to_string(group.available)+" / "+std::to_string(remaining)+" available ("+std::to_string(group.done)+" completed)";
+                hovered=groupLabel(group.label,group.available,remaining,group.done);
             }
         }
     }
@@ -496,24 +647,17 @@ void draw(ModContext*, void* args, void*, void*) {
         if (distance<closest) {
             closest=distance; hoverDone=false;
             hoverColor=available ? JUtility::TColor(255,240,130,255) : JUtility::TColor(190,190,190,255);
-            hovered=temple.name+" - "+std::to_string(available)+" checks available";
+            hovered=templeLabel(temple.name,available);
         }
     }
     // Leave room for the native location-name banner above the map.
     inspection.targets.setHint(inspectionHint(graf,left+12,top+48,inspection.targets));
-    if (!hovered.empty()) {
-        // Wrap instead of letting long location names spill outside the map.
-        const auto split = hovered.size() > 48 ? hovered.rfind(' ',48) : std::string::npos;
-        std::string first = split == std::string::npos ? hovered : hovered.substr(0,split);
-        std::string second = split == std::string::npos ? "" : hovered.substr(split+1);
-        fill(left+12,bottom-66,right-left-24,58,JUtility::TColor(20,18,12,235));
-        J2DPrint text(mDoExt_getMesgFont(),hoverColor,hoverColor);
-        text.setFontSize(13,16);
-        text.print(left+20,bottom-43,255,"%s",first.c_str());
-        text.print(left+20,bottom-23,255,"%s",second.c_str());
-        if (hoverDone) {
-            fill(left+20,bottom-49,std::min<float>(first.size()*7,right-left-40),1,hoverColor);
-            if (!second.empty()) fill(left+20,bottom-29,std::min<float>(second.size()*7,right-left-40),1,hoverColor);
+    if (!hovered.english.empty()) {
+        if (auto text=prepareMapText(hovered,13,16,16,right-left-40,2)) {
+            fill(left+12,bottom-66,right-left-24,58,JUtility::TColor(20,18,12,235));
+            drawMapText(graf,*text,left+20,bottom-43,20,hoverColor);
+            if (hoverDone) for(size_t line=0;line<text->layout.lines.size();++line)
+                fill(left+20,bottom-49+20*line,text->layout.lines[line].width,1,hoverColor);
         }
     }
 }
@@ -522,8 +666,7 @@ void drawDungeonSummary(J2DGrafContext* graf,MapHitRect map,float opacity) {
     bool documentVisible=true;
     if(svc_ui->is_any_document_visible(mod_ctx,&documentVisible)!=MOD_OK || documentVisible) return;
     const auto dungeon=state->dungeonForStage(state->stage);
-    auto* font=mDoExt_getMesgFont();
-    if(dungeon.empty() || !font) return;
+    if(dungeon.empty()) return;
     const auto counts=state->dungeonCheckCounts(dungeon);
     const MapHitRect screen{mDoGph_gInf_c::getMinXF(),mDoGph_gInf_c::getMinYF(),
         mDoGph_gInf_c::getMinXF()+mDoGph_gInf_c::getWidthF(),mDoGph_gInf_c::getMinYF()+mDoGph_gInf_c::getHeightF()};
@@ -536,16 +679,15 @@ void drawDungeonSummary(J2DGrafContext* graf,MapHitRect map,float opacity) {
     const JUtility::TColor gold(198,181,112,255),ink(232,226,205,255),green(113,231,141,255);
     fill(box.left,box.top,112,80,JUtility::TColor(20,18,12,235));
     fill(box.left,box.top,2,80,gold);
-    J2DPrint title(font,gold,gold); title.setFontSize(9,11);
-    title.print(box.left+8,box.top+17,255,"Dungeon checks");
-    J2DPrint text(font,ink,ink); text.setFontSize(8,10);
-    text.print(box.left+8,box.top+37,255,"Accessible");
-    text.print(box.left+8,box.top+54,255,"Remaining");
-    text.print(box.left+8,box.top+71,255,"All floors");
+    if(auto title=prepareMapText(mapString("Dungeon checks"),9,11,12,96)) drawMapText(graf,*title,box.left+8,box.top+17,0,gold);
+    auto label=[&](const char* value,float baseline) {
+        if(auto text=prepareMapText(mapString(value),8,10,11,72)) drawMapText(graf,*text,box.left+8,baseline,0,ink);
+    };
+    label("Accessible",box.top+37); label("Remaining",box.top+54); label("All floors",box.top+71);
     auto number=[&](int value,float y,JUtility::TColor color) {
         const auto label=std::to_string(value);
-        J2DPrint count(font,color,color); count.setFontSize(10,12);
-        count.print(box.right-8-label.size()*7,y,255,"%s",label.c_str());
+        if(auto text=prepareMapText({label,label},10,12,12,30); text && !text->layout.lines.empty())
+            drawMapText(graf,*text,box.right-8-text->layout.lines[0].width,y,0,color);
     };
     number(counts.accessible,box.top+37,green); number(counts.remaining,box.top+54,ink);
     inspection.targets.panel=box;
@@ -761,8 +903,10 @@ void drawMini(ModContext*,void* args,void*,void*) {
 }
 void setMapCheckHandler(MapCheckHandler handler,bool (*closeHandler)()) { checkHandler=handler; closeCheckHandler=closeHandler; }
 bool mapInspectionActive() { return inspectionContext(); }
-ModResult initializeMap(Model* model) {
+ModResult initializeMap(Model* model, const Localization* locale) {
     state = model;
+    mapLocale = locale;
+    loadMapFont();
     void* address=nullptr;
     if(svc_hook->resolve(mod_ctx,"aurora::window::get_window_size",&address,nullptr)==MOD_OK)
         windowSize=reinterpret_cast<WindowSizeFn>(address);
@@ -868,6 +1012,6 @@ ModResult initializeMap(Model* model) {
     if (!mapAvailable) shutdownMap();
     return mapBefore!=MOD_OK ? mapBefore : mapAfter!=MOD_OK ? mapAfter : mapPicture;
 }
-void shutdownMap() { inspection.clear(); checkHandler=nullptr; closeCheckHandler=nullptr; windowSize=nullptr; setMapActionHandler(nullptr); state = nullptr; mapAvailable = false; flagIndex.clear(); chestTexture.clear(); doneTexture.clear(); iconTextures.clear(); localPositions.clear(); worldPositions.clear(); temples.clear(); arenaEntrances.clear(); exteriorStages.clear(); drawingMeter=nullptr; drawingFieldMap=nullptr; fieldMapMirrored=false; minimapAvailable=false; }
+void shutdownMap() { inspection.clear(); checkHandler=nullptr; closeCheckHandler=nullptr; windowSize=nullptr; setMapActionHandler(nullptr); state = nullptr; mapLocale=nullptr; mapFont.clear(); mapAvailable = false; flagIndex.clear(); chestTexture.clear(); doneTexture.clear(); iconTextures.clear(); localPositions.clear(); worldPositions.clear(); temples.clear(); arenaEntrances.clear(); exteriorStages.clear(); drawingMeter=nullptr; drawingFieldMap=nullptr; fieldMapMirrored=false; minimapAvailable=false; }
 }
 
