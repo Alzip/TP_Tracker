@@ -20,9 +20,9 @@ function Invoke-Checked {
 }
 
 $ProjectRoot = Split-Path -Parent $PSScriptRoot
-$GitPath = (Get-Command git -CommandType Application -ErrorAction Stop).Source
-$PythonPath = (Get-Command python -CommandType Application -ErrorAction Stop).Source
-$CMakePath = (Get-Command cmake -CommandType Application -ErrorAction Stop).Source
+$GitPath = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$PythonPath = (Get-Command python -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+$CMakePath = (Get-Command cmake -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 $CTestPath = Join-Path (Split-Path -Parent $CMakePath) "ctest.exe"
 if (-not (Test-Path -LiteralPath $CTestPath)) {
     throw "ctest.exe was not found next to cmake.exe. Install CMake >= 3.26."
