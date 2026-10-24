@@ -39,6 +39,10 @@ jobs:
         run: python tools/build_map_font.py
         shell: pwsh
 
+      - name: Restore audited cross-platform font metrics
+        shell: pwsh
+        run: python tools/ko3/restore_manifest.py
+
       - name: Verify exact ko3 font assets
         shell: pwsh
         run: |
