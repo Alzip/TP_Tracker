@@ -1,4 +1,73 @@
-# TPTracker 0.4.44
+# TPTracker 0.4.44+vanilla.1 (unofficial normal-game patch)
+
+This patch targets **Dusklight 2.0.3 on Windows x64** and adds an explicit
+**Normal game (no randomizer)** option in
+**F1 > Mods > TPTracker**. It is off by default. Enable it for an ordinary
+Twilight Princess save; no seed or spoiler log is needed. The option is saved
+across restarts, so turn it off again before using a randomizer save.
+
+Normal mode evaluates native inventory, completed bosses, twilight clearance,
+and the prologue. It adapts native quest-item slots, consumed quest items,
+Hidden Skills, Sky Book progress, wallet upgrades and discovered portals.
+Native boss hearts and dungeon rewards use their own completion records.
+Randomizer-only hint signs and optional rupee markers are excluded: the latter
+use randomizer-patched coordinates/flags that cannot safely identify normal
+pickups. NPC rewards, shops, bugs, Poes, skills and owl statues remain listed.
+
+This is a compatibility patch based on upstream commit
+`3db24b37f6b9c0c2129ba6d5b2ef31a8478ec212`, not an upstream release. The route
+catalogue is still inherited from the randomizer; unusual story sequences,
+modified/imported saves, and native gameplay need live validation. `UNKNOWN`
+still means the tracker lacks sufficient evidence. This patch does not write
+game progression flags or randomizer settings.
+
+See [한국어 적용 안내](NORMAL_GAME_KO.md) for installation and testing guidance.
+
+## Windows package from GitHub Actions
+
+The [normal-game-windows workflow](.github/workflows/normal-game-windows.yml)
+builds the Windows package on GitHub. **No Git, Python, CMake or Visual Studio
+installation is needed on the player's PC.** The modified source is maintained
+in [Alzip/TP_Tracker](https://github.com/Alzip/TP_Tracker).
+
+1. Open that repository's **Actions** tab and select **Normal game - Windows x64**.
+2. Select **Run workflow**, choose the branch containing this patch, and start the run.
+3. After the run succeeds, open its summary and download the
+   **TPTracker-normal-game-windows-x64** artifact under **Artifacts**.
+4. Extract the download and install
+   `TPTracker-0.4.44+vanilla.1-windows-amd64.dusk` in Dusklight 2.0.3.
+   Keep only one installed copy of TPTracker. Enable
+   **F1 > Mods > TPTracker > Normal game (no randomizer)** after loading the save.
+
+The workflow compiles the mod, runs regression tests and checks resources and
+native metadata. A successful artifact also includes `BUILD_INFO.json` and a
+SHA-256 file identifying the package and source revision. Check the
+[Actions run results](https://github.com/Alzip/TP_Tracker/actions) for the status
+of each revision. A successful build still requires gameplay validation.
+
+Developers with a Windows C++ toolchain can instead run
+`tools/build_windows_vanilla.ps1`; see the Korean guide for prerequisites.
+Linux binaries from the development environment are not Windows packages.
+
+## Verification and Korean localization
+
+The local tests include synthetic Kakariko save-state inputs for the first wolf
+visit in twilight, human access after Eldin twilight is cleared, Barnes's native
+post-Goron-Mines shop opening, and local equipment restrictions. They do not run
+Dusklight or load the player's save.
+Live Kakariko gameplay and the complete normal-game story remain to be verified.
+
+Korean menus, check names and collection guides are feasible as a separate
+display layer; the English keys used by logic and saved tracker records must
+remain stable. The guide resource has 658 entries and 1,080 paragraphs. No
+Korean translation is included in this patch. Dusklight 2.0.3's bundled UI fonts
+lack Hangul glyphs, and its public mod UI service exposes no font-loading API.
+A supported Korean font path must be tested before translating the full guide;
+native in-game map labels use a separate renderer and need a separate check.
+See the [font setup](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/src/dusk/ui/ui.cpp)
+and [public UI service](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h).
+
+## Upstream 0.4.44 notes
 
 ## 0.4.44 dungeon totals, map controls and hint markers
 

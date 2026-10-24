@@ -1,9 +1,9 @@
 {
   "id": "com.mikey022.tp_randomizer_tracker",
   "name": "TPTracker",
-  "version": "0.4.44",
+  "version": "0.4.44+vanilla.1",
   "author": "mikey022",
-  "description": "Native Twilight Princess check and inventory tracker. No external tracker or web bridge.",
+  "description": "Unofficial normal-game support patch for TPTracker 0.4.44. Native Twilight Princess check and inventory tracker.",
   "icon": "res/Poster.png",
   "banner": "res/Banner.png",
   "abi": 1,
