@@ -8,6 +8,7 @@
 #include <mods/svc/ui.h>
 #include <aurora/aurora.h>
 #include <mods/svc/hook.hpp>
+#include <mods/svc/log.hpp>
 #include "d/d_com_inf_game.h"
 #include "d/d_menu_fmap.h"
 #include "d/d_menu_dmap.h"
@@ -51,18 +52,21 @@ bool minimapTypes[checkTypeCount] = {true,true,true,true,true,true,true,true,tru
 namespace {
 Model* state = nullptr;
 const Localization* mapLocale = nullptr;
+bool mapKoreanRequested = false;
 MapFontAtlas mapFont;
 struct MapLabel { std::string english, translated; };
-bool koreanMap() { return mapLocale && mapLocale->enabled(); }
+// The native atlas is self-contained. A window-font cache/stylesheet failure
+// must not disable otherwise usable Korean map text.
+bool koreanMap() { return mapKoreanRequested && mapLocale && mapLocale->available(); }
 MapLabel mapString(std::string_view english) {
-    return {std::string(english), koreanMap() ? mapLocale->stringLookup(english) : std::string{}};
+    return {std::string(english), koreanMap() ? mapLocale->stringLookup(english, true) : std::string{}};
 }
 MapLabel checkLabel(const std::string& name, Truth access, bool done = false) {
     const std::string status = done ? "DONE" : access == Truth::yes ? "OPEN" : access == Truth::no ? "LOCKED" : "UNKNOWN";
     MapLabel result{"[" + status + "] " + name, {}};
     if (koreanMap()) {
-        const auto translated = mapLocale->nameLookup(name);
-        if (translated != name) result.translated = "[" + mapLocale->stringLookup(status) + "] " + translated;
+        const auto translated = mapLocale->nameLookup(name, true);
+        result.translated = "[" + mapLocale->stringLookup(status, true) + "] " + translated;
     }
     return result;
 }
@@ -82,8 +86,8 @@ MapLabel groupLabel(const std::string& name, int available, int remaining, int c
     };
     MapLabel result{formatWith(std::string(format), name), {}};
     if (koreanMap()) {
-        const auto translated = mapLocale->nameLookup(name);
-        if (translated != name) result.translated = formatWith(mapLocale->stringLookup(format), translated);
+        const auto translated = mapLocale->nameLookup(name, true);
+        result.translated = formatWith(mapLocale->stringLookup(format, true), translated);
     }
     return result;
 }
@@ -94,8 +98,8 @@ MapLabel templeLabel(const std::string& name, int available) {
     };
     MapLabel result{formatWith(std::string(format), name), {}};
     if (koreanMap()) {
-        const auto translated = mapLocale->nameLookup(name);
-        if (translated != name) result.translated = formatWith(mapLocale->stringLookup(format), translated);
+        const auto translated = mapLocale->nameLookup(name, true);
+        result.translated = formatWith(mapLocale->stringLookup(format, true), translated);
     }
     return result;
 }
@@ -167,6 +171,9 @@ void drawMapText(J2DGrafContext* graf, const PreparedMapText& prepared, float le
 void loadMapFont() {
     mapFont.clear();
     if (!koreanMap()) return;
+    auto unavailable = [](const char* reason) {
+        mods::log::warn("TPTracker: Korean map atlas unavailable ({}); native English map text remains active.", reason);
+    };
     auto read = [](const char* path, size_t maximum) -> std::optional<std::vector<unsigned char>> {
         ResourceBuffer buffer = RESOURCE_BUFFER_INIT;
         if (svc_resource->load(mod_ctx, path, &buffer) != MOD_OK) return {};
@@ -177,18 +184,18 @@ void loadMapFont() {
     };
     try {
         const auto manifestBytes = read("fonts/map-ko.json", 2 * 1024 * 1024);
-        if (!manifestBytes) return;
+        if (!manifestBytes) { unavailable("manifest could not be read"); return; }
         const auto manifest = Json::parse(manifestBytes->begin(), manifestBytes->end());
         const auto resources = MapFontAtlas::resourcePaths(manifest);
-        if (!resources) return;
+        if (!resources) { unavailable("manifest resource paths are invalid"); return; }
         std::vector<std::vector<unsigned char>> pages;
         for (const auto& path : *resources) {
             auto bytes = read(path.c_str(), 32 + 1024 * 1024 * 4);
-            if (!bytes) return;
+            if (!bytes) { unavailable("texture page could not be read"); return; }
             pages.push_back(std::move(*bytes));
         }
-        (void)mapFont.load(manifest, std::move(pages));
-    } catch (...) { mapFont.clear(); }
+        if (!mapFont.load(manifest, std::move(pages))) unavailable("texture or glyph validation failed");
+    } catch (...) { mapFont.clear(); unavailable("manifest could not be parsed"); }
 }
 MapCheckHandler checkHandler=nullptr;
 bool (*closeCheckHandler)()=nullptr;
@@ -693,6 +700,25 @@ void drawDungeonSummary(J2DGrafContext* graf,MapHitRect map,float opacity) {
     inspection.targets.panel=box;
     graf->scissor(savedScissor); graf->setScissor(); graf->setup2D();
 }
+void drawDungeonCaption(J2DGrafContext* graf,MapHitRect map) {
+    // Reuse the exact visible icon hit-test used by Check Info. This caption
+    // neither adds targets nor changes selection, input, filters or game data.
+    if (!inspectionContext() || map.right-map.left<80 || map.bottom-map.top<120) return;
+    bool visible=true;
+    if (svc_ui->is_any_document_visible(mod_ctx,&visible)!=MOD_OK || visible) return;
+    const auto point=hoverPoint();
+    const auto name=point ? inspection.targets.hit(*point) : std::string{};
+    if (name.empty()) return;
+    const auto found=state->accessible.find(name);
+    const auto access=found==state->accessible.end() ? Truth::unknown : found->second;
+    const auto text=prepareMapText(checkLabel(name,access),13,16,16,map.right-map.left-40,2);
+    if (!text) return;
+    const auto ink=access==Truth::yes ? JUtility::TColor(110,250,135,255) :
+        access==Truth::no ? JUtility::TColor(255,180,170,255) : JUtility::TColor(240,205,100,255);
+    graf->setup2D();
+    J2DFillBox(map.left+12,map.bottom-66,map.right-map.left-24,58,JUtility::TColor(20,18,12,235));
+    drawMapText(graf,*text,map.left+20,map.bottom-43,20,ink);
+}
 // The temple pause map has its own renderer. Draw during its icon pass so
 // native clipping, floor selection, zoom, panning and opening alpha apply.
 void drawDungeon(ModContext*,void* args,void*,void*) {
@@ -800,6 +826,7 @@ void drawDungeon(ModContext*,void* args,void*,void*) {
         inspection.targets.setHint(inspectionHint(graf,originX+8,originY+8,inspection.targets));
     }
     drawDungeonSummary(graf,{originX,originY,originX+width,originY+height},opacity);
+    drawDungeonCaption(graf,{originX,originY,originX+width,originY+height});
     graf->setup2D();
 }
 void drawMini(ModContext*,void* args,void*,void*) {
@@ -903,9 +930,11 @@ void drawMini(ModContext*,void* args,void*,void*) {
 }
 void setMapCheckHandler(MapCheckHandler handler,bool (*closeHandler)()) { checkHandler=handler; closeCheckHandler=closeHandler; }
 bool mapInspectionActive() { return inspectionContext(); }
-ModResult initializeMap(Model* model, const Localization* locale) {
+bool koreanMapTextReady() { return koreanMap() && mapFont.ready(); }
+ModResult initializeMap(Model* model, const Localization* locale, bool koreanRequested) {
     state = model;
     mapLocale = locale;
+    mapKoreanRequested = koreanRequested;
     loadMapFont();
     void* address=nullptr;
     if(svc_hook->resolve(mod_ctx,"aurora::window::get_window_size",&address,nullptr)==MOD_OK)
@@ -1012,6 +1041,6 @@ ModResult initializeMap(Model* model, const Localization* locale) {
     if (!mapAvailable) shutdownMap();
     return mapBefore!=MOD_OK ? mapBefore : mapAfter!=MOD_OK ? mapAfter : mapPicture;
 }
-void shutdownMap() { inspection.clear(); checkHandler=nullptr; closeCheckHandler=nullptr; windowSize=nullptr; setMapActionHandler(nullptr); state = nullptr; mapLocale=nullptr; mapFont.clear(); mapAvailable = false; flagIndex.clear(); chestTexture.clear(); doneTexture.clear(); iconTextures.clear(); localPositions.clear(); worldPositions.clear(); temples.clear(); arenaEntrances.clear(); exteriorStages.clear(); drawingMeter=nullptr; drawingFieldMap=nullptr; fieldMapMirrored=false; minimapAvailable=false; }
+void shutdownMap() { inspection.clear(); checkHandler=nullptr; closeCheckHandler=nullptr; windowSize=nullptr; setMapActionHandler(nullptr); state = nullptr; mapLocale=nullptr; mapKoreanRequested=false; mapFont.clear(); mapAvailable = false; flagIndex.clear(); chestTexture.clear(); doneTexture.clear(); iconTextures.clear(); localPositions.clear(); worldPositions.clear(); temples.clear(); arenaEntrances.clear(); exteriorStages.clear(); drawingMeter=nullptr; drawingFieldMap=nullptr; fieldMapMirrored=false; minimapAvailable=false; }
 }
 

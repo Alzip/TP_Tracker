@@ -3,7 +3,9 @@
 #include <mods/api.h>
 namespace tracker {
 class Localization;
-ModResult initializeMap(Model* model, const Localization* locale = nullptr);
+ModResult initializeMap(Model* model, const Localization* locale = nullptr, bool koreanRequested = false);
+// Native-map text uses its bundled atlas independently of the window font.
+bool koreanMapTextReady();
 void shutdownMap();
 using MapCheckHandler = bool (*)(const std::string&);
 void setMapCheckHandler(MapCheckHandler handler,bool (*closeHandler)());

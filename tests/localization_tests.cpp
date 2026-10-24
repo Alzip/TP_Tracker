@@ -14,6 +14,23 @@ std::string join(const std::vector<std::string>& blocks) {
     for (const auto& block : blocks) out += block;
     return out;
 }
+const Localization* detailLocale = nullptr;
+std::string localizeLogic(std::string_view expression) { return detailLocale->logic(expression); }
+void requireKoreanNodes(std::string_view markup, const std::string& name) {
+    // Inspect only rendered text nodes, never the intentionally English CSS
+    // classes, attributes, canonical IDs or escaped markup entity names.
+    bool tag = false, entity = false;
+    unsigned latinRun = 0;
+    for (char c : markup) {
+        if (c == '<') { tag = true; latinRun = 0; continue; }
+        if (tag) { if (c == '>') tag = false; continue; }
+        if (c == '&') { entity = true; latinRun = 0; continue; }
+        if (entity) { if (c == ';') entity = false; continue; }
+        if ((c >= 'A' && c <= 'Z') || (c >= 'a' && c <= 'z')) {
+            if (++latinRun >= 2) throw std::runtime_error("Untranslated rendered text in " + name);
+        } else latinRun = 0;
+    }
+}
 Json fixture() {
     return {
         {"version", 1}, {"language", "ko"},
@@ -23,6 +40,12 @@ Json fixture() {
             {"No additional items required.", "추가 아이템이 필요하지 않습니다."},
             {"Sources: ", "출처: "}, {"Obtained: ", "획득 수: "}, {"Starting inventory", "시작 아이템"},
             {"and", "그리고"}, {"or", "또는"},
+            {"Logic unavailable: ", "진행 조건 확인 불가: "},
+            {"Seed metadata unavailable: ", "시드 자료를 읽을 수 없음: "},
+            {"Incomplete seed metadata: ", "시드 자료 읽기 미완료: "},
+            {"Unsupported native seed format", "지원하지 않는 시드 형식"},
+            {"Left bumper", "왼쪽 범퍼"}, {"Controller button {button}", "컨트롤러 버튼 {button}"},
+            {"Key {key}", "키 {key}"}, {"Assigned: {binding}", "할당: {binding}"},
             {"Collection directions are unavailable for this check.", "이 항목의 공략은 없습니다."},
             {"Guide text is shown in English; a Korean translation is not yet available.", "미번역 공략은 영어로 표시합니다."},
             {"Collection guide only. The requirements on the left use normal-game story progress and inventory.", "왼쪽 조건은 일반 게임의 진행 상황과 아이템을 사용합니다."},
@@ -61,6 +84,33 @@ int main(int argc, char** argv) {
                 "string translation or English fallback failed");
         require(locale.nameLookup("Barnes Bomb Bag") == "반즈의 폭탄주머니" && locale.nameLookup("unknown") == "unknown",
                 "name translation or canonical fallback failed");
+        locale.setEnabled(false);
+        require(locale.stringLookup("OPEN") == "OPEN" && locale.nameLookup("Barnes Bomb Bag") == "Barnes Bomb Bag" &&
+                locale.stringLookup("OPEN", true) == "진입 가능" && locale.nameLookup("Barnes Bomb Bag", true) == "반즈의 폭탄주머니" &&
+                locale.stringLookup("OPEN", false) == "OPEN" && locale.nameLookup("Barnes Bomb Bag", false) == "Barnes Bomb Bag",
+                "independent native-map language request depends on the window font gate");
+        Localization noDictionary;
+        require(noDictionary.stringLookup("OPEN", true) == "OPEN" &&
+                noDictionary.nameLookup("Barnes Bomb Bag", true) == "Barnes Bomb Bag",
+                "native-map lookup did not safely fall back without a dictionary");
+        require(locale.bindingName("Left bumper") == "Left bumper" &&
+                locale.message("Logic unavailable: Unsupported native seed format") == "Logic unavailable: Unsupported native seed format",
+                "English mode translated binding labels or errors");
+        locale.setEnabled(true);
+        require(locale.bindingName("Left bumper") == "왼쪽 범퍼" &&
+                locale.bindingName("Controller button 19") == "컨트롤러 버튼 19" &&
+                locale.bindingName("Key 72") == "키 72" && locale.bindingName("F12") == "F12" &&
+                locale.bindingName("A") == "A" && locale.bindingName("Unknown hardware name") == "Unknown hardware name",
+                "binding display lost physical key identity or left generated labels untranslated");
+        require(locale.format("Assigned: {binding}", {{"binding", "OPEN"}}) == "할당: OPEN",
+                "formatting translated an opaque caller-supplied field");
+        require(locale.message("Logic unavailable: Unsupported native seed format") == "진행 조건 확인 불가: 지원하지 않는 시드 형식",
+                "dynamic logic error only translated its prefix");
+        const std::string filePath = "C:/OPEN | Kakariko Village/seed.dat";
+        require(locale.message("Seed metadata unavailable: " + filePath) == "시드 자료를 읽을 수 없음: " + filePath &&
+                locale.message("Logic unavailable: Incomplete seed metadata: " + filePath) ==
+                    "진행 조건 확인 불가: 시드 자료 읽기 미완료: " + filePath,
+                "error translation rewrote an opaque file path");
         require(locale.match("Barnes Bomb Bag", "BARNES") && locale.match("Barnes Bomb Bag", "폭탄주머니") &&
                 !locale.match("Barnes Bomb Bag", "카카리코"), "English/Korean search mismatch");
         require(locale.rml(markup) == "<div class='tp-state OPEN' data-name='Barnes Bomb Bag'>진입 가능 | 카카리코 마을</div>",
@@ -198,6 +248,38 @@ int main(int argc, char** argv) {
                 "display name replaced the canonical completion key");
         require(model.checkDetails(check, false).find("DONE") != std::string::npos && !model.obtained.contains(locale.nameLookup(check)),
                 "completion did not retain the canonical check ID");
+        // Dictionary coverage alone missed rendered dynamic text in ko2. Render
+        // every actual check in both modes, including relevant native values,
+        // and every item's unowned/owned history with the shipped resources.
+        Model displayModel = model;
+        for (const auto& item : catalogue.at("items")) displayModel.inventory[item.at("Name")] = -1;
+        for (const auto& [name, unused] : shippedLocale.at("names").items())
+            if (name.starts_with("Vanilla ")) displayModel.inventory[name] = -1;
+        displayModel.inventory["Heart Count"] = -1;
+        displayModel.inventory["Hawkeye"] = -1;
+        detailLocale = &locale;
+        const auto inventoryBefore = displayModel.inventory;
+        const auto settingsBefore = displayModel.settings;
+        size_t renderedCount = 0;
+        for (const auto& checkData : catalogue.at("checks")) {
+            const auto name = checkData.at("name").get<std::string>();
+            for (bool advanced : {false, true}) {
+                const auto markup = locale.rml(displayModel.checkDetails(name, advanced, localizeLogic));
+                requireKoreanNodes(markup, name); ++renderedCount;
+            }
+        }
+        require(displayModel.inventory == inventoryBefore && displayModel.settings == settingsBefore &&
+                displayModel.aliases == aliases && displayModel.catalogue == normalizedCatalogue,
+                "rendering all localized check details modified model state");
+        for (const auto& item : catalogue.at("items")) {
+            const auto name = item.at("Name").get<std::string>();
+            for (int count : {0, 1}) {
+                displayModel.inventory[name] = count; displayModel.startingItems[name] = count;
+                requireKoreanNodes(locale.rml(displayModel.itemHistory(name)), name); ++renderedCount;
+            }
+        }
+        detailLocale = nullptr;
+        std::cout << renderedCount << " real detail/history renderings contain no untranslated English words.\n";
         std::cout << "Localization display/fallback/escaping/ID checks passed.\n";
     } catch (const std::exception& error) {
         std::cerr << error.what() << '\n';

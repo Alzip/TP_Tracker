@@ -1,6 +1,7 @@
 #pragma once
 #include "model.hpp"
 #include <algorithm>
+#include <array>
 #include <optional>
 #include <stdexcept>
 #include <string_view>
@@ -18,11 +19,14 @@ class Localization {
             if (c < 0x20 && c != '\t' && c != '\r' && c != '\n') return false;
         return true;
     }
-    const std::string* lookup(std::string_view category, std::string_view key) const {
-        if (!enabled()) return nullptr;
+    const std::string* lookup(std::string_view category, std::string_view key, bool languageEnabled) const {
+        if (!languageEnabled || !available()) return nullptr;
         const auto& entries = data_.at(std::string(category));
         auto found = entries.find(std::string(key));
         return found == entries.end() ? nullptr : &found->get_ref<const std::string&>();
+    }
+    const std::string* lookup(std::string_view category, std::string_view key) const {
+        return lookup(category, key, enabled());
     }
     const std::string* textLookup(std::string_view key) const {
         if (const auto* value = lookup("strings", key)) return value;
@@ -88,6 +92,17 @@ class Localization {
         }
         return std::string(text);
     }
+    std::string translateMessage(std::string_view text, unsigned depth = 0) const {
+        if (depth >= 4) return std::string(text);
+        // These error suffixes are paths, not prose or dictionary names.
+        for (std::string_view prefix : {"Seed metadata unavailable: ", "Incomplete seed metadata: "})
+            if (text.starts_with(prefix))
+                return stringLookup(prefix) + std::string(text.substr(prefix.size()));
+        constexpr std::string_view logic = "Logic unavailable: ";
+        if (text.starts_with(logic))
+            return stringLookup(logic) + translateMessage(text.substr(logic.size()), depth + 1);
+        return translateText(text);
+    }
 
 public:
     void load(const Json& data) {
@@ -121,9 +136,50 @@ public:
         const auto* value = lookup("strings", english);
         return value ? *value : std::string(english);
     }
+    // A native-map atlas is independent of the window's RmlUi font setup.
+    // The caller supplies its own language request; unavailable dictionaries
+    // still retain the original label. The one-argument UI API is unchanged.
+    std::string stringLookup(std::string_view english, bool languageEnabled) const {
+        const auto* value = lookup("strings", english, languageEnabled);
+        return value ? *value : std::string(english);
+    }
     std::string nameLookup(std::string_view canonicalName) const {
         const auto* value = lookup("names", canonicalName);
         return value ? *value : std::string(canonicalName);
+    }
+    std::string nameLookup(std::string_view canonicalName, bool languageEnabled) const {
+        const auto* value = lookup("names", canonicalName, languageEnabled);
+        return value ? *value : std::string(canonicalName);
+    }
+    // For tracker-owned messages only. Callers keep seed IDs, file paths,
+    // personal notes and recorded in-game hint prose outside this translation.
+    std::string message(std::string_view text) const {
+        return enabled() ? translateMessage(text) : std::string(text);
+    }
+    std::string format(std::string_view key,
+        std::initializer_list<std::pair<std::string_view, std::string>> fields) const {
+        auto result = stringLookup(key);
+        for (const auto& [name, value] : fields) {
+            const auto token = "{" + std::string(name) + "}";
+            size_t pos = 0;
+            while ((pos = result.find(token, pos)) != std::string::npos) {
+                result.replace(pos, token.size(), value); pos += value.size();
+            }
+        }
+        return result;
+    }
+    std::string bindingName(std::string_view english) const {
+        if (!enabled()) return std::string(english);
+        for (const auto& [prefix, key, field] : {
+                 std::array<std::string_view, 3>{"Controller button ", "Controller button {button}", "button"},
+                 {"Key ", "Key {key}", "key"}}) {
+            if (!english.starts_with(prefix)) continue;
+            const auto number = english.substr(prefix.size());
+            const auto digits = number.starts_with('-') ? number.substr(1) : number;
+            if (!digits.empty() && digits.find_first_not_of("0123456789") == std::string_view::npos)
+                return format(key, {{field, std::string(number)}});
+        }
+        return stringLookup(english);
     }
     // Lex the original logic before expanding underscores: Ball_and_Chain is
     // one item, whereas "A and B" contains a conjunction. This function is

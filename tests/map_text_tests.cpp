@@ -1,4 +1,5 @@
 #include "map_text.hpp"
+#include "localization.hpp"
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -55,6 +56,43 @@ int main(int argc, char** argv) {
     MapFontAtlas atlas;
     require(atlas.load(manifest, textures) && atlas.ready(), "Committed atlas validates");
     require(atlas.glyph('W')->advance > atlas.glyph('i')->advance, "Widths use font metrics, not byte counts");
+    // The embedded native-map atlas must still work when the window's font
+    // cache or stylesheet could not be registered. Only its own language
+    // request, dictionary and atlas determine native-map text availability.
+    Localization windowLocale;
+    windowLocale.load(locale);
+    windowLocale.setEnabled(false);
+    require(windowLocale.stringLookup("Dungeon checks") == "Dungeon checks", "Window font failure retains English window text");
+    const auto mapTitle=windowLocale.stringLookup("Dungeon checks",true);
+    const auto mapName=windowLocale.nameLookup("Barnes Bomb Bag",true);
+    require(mapTitle!="Dungeon checks" && mapName!="Barnes Bomb Bag" &&
+            chooseMapText(atlas,true,"Dungeon checks",mapTitle).atlas,
+            "A window-font failure must not force a valid independent map atlas to English");
+    require(windowLocale.stringLookup("Dungeon checks",false)=="Dungeon checks" &&
+            windowLocale.nameLookup("Barnes Bomb Bag",false)=="Barnes Bomb Bag" &&
+            !chooseMapText(atlas,false,"Dungeon checks",mapTitle).atlas,
+            "The language preference still disables Korean native-map text");
+    Localization missingLocale;
+    require(missingLocale.stringLookup("Dungeon checks",true)=="Dungeon checks",
+            "Explicit map language cannot bypass a missing dictionary");
+
+    // These labels come from map resources, not just the central catalogue.
+    // Require every shipped interior/temple label to have a usable translation.
+    std::set<std::string> mapNames{"Coro"};
+    const auto collectLabels=[&](const auto& self,const Json& value)->void {
+        if(value.is_object()) {
+            if(value.contains("label") && value.at("label").is_string() && !value.at("label").get_ref<const std::string&>().empty())
+                mapNames.insert(value.at("label").get<std::string>());
+            for(const auto& [key,child]:value.items()) self(self,child);
+        } else if(value.is_array()) for(const auto& child:value) self(self,child);
+    };
+    collectLabels(collectLabels,readJson(root/"positions.json"));
+    const auto templeData=readJson(root/"temples.json");
+    for(const auto& [name,position]:templeData.items()) mapNames.insert(name);
+    for(const auto& name:mapNames) {
+        const auto translated=windowLocale.nameLookup(name,true);
+        require(translated!=name && atlas.supports(translated), "A native-map entrance or temple label is untranslated");
+    }
     size_t checked = 0;
     for (const char* section : {"names", "strings"}) for (const auto& [key, value] : locale.at(section).items()) {
         const auto text = value.get<std::string>();

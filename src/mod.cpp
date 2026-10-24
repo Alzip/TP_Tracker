@@ -6,6 +6,7 @@
 #include "notebook.hpp"
 #include "check_guides.hpp"
 #include "localization.hpp"
+#include "localized_controls.hpp"
 #include "korean_font.hpp"
 #include "seed.hpp"
 #include "map.hpp"
@@ -52,6 +53,7 @@ tracker::Model model;
 tracker::EntranceJourney entranceJourney;
 tracker::CheckGuides checkGuides;
 tracker::Localization localization;
+tracker::LocalizedToggleControls localizedToggles;
 bool koreanEnabled = true, koreanRequestedAtLaunch = false, koreanFontAvailable = false;
 UiStyleHandle koreanStyle = 0;
 std::string koreanLoadError;
@@ -60,17 +62,13 @@ std::string koreanLoadError;
 // identifiers remain untouched, including saved notes and check selections.
 std::string uiText(std::string_view key) { return localization.stringLookup(key); }
 std::string uiName(std::string_view key) { return localization.nameLookup(key); }
+ModResult uiError(ModError* error,ModResult code,std::string_view message) {
+    const auto text=localization.message(message);
+    return mods::set_error(error,code,text.c_str());
+}
 std::string uiFormat(std::string_view key,
     std::initializer_list<std::pair<std::string_view,std::string>> values) {
-    auto text=uiText(key);
-    for(const auto& [name,value]:values) {
-        const auto token="{"+std::string(name)+"}";
-        size_t pos=0;
-        while((pos=text.find(token,pos))!=std::string::npos) {
-            text.replace(pos,token.size(),value); pos+=value.size();
-        }
-    }
-    return text;
+    return localization.format(key,values);
 }
 ModResult addControl(UiElementHandle pane,const UiControlDesc* source,UiElementHandle* out) {
     auto desc=*source;
@@ -94,6 +92,7 @@ ModResult addControl(UiElementHandle pane,const UiControlDesc* source,UiElementH
         for(const auto& option:labels) options.push_back(option.c_str());
         desc.options=options.data();
     }
+    localizedToggles.adapt(desc,localization.enabled(),uiText("Off"),uiText("On"));
     return svc_ui->pane_add_control(mod_ctx,pane,&desc,out);
 }
 ModResult setControlLabel(UiElementHandle control,const char* label) {
@@ -196,18 +195,18 @@ std::future<tracker::LogicResult> logicJob;
 std::string search;
 std::string status = "Select this save's spoiler log in F1 > Mods > TPTracker.";
 std::string displayedStatus() {
-    auto text=uiText(status);
+    auto text=localization.message(status);
     if(status.starts_with("Seed: ")) {
         auto seed=status.substr(6);
         constexpr std::string_view selected=" (selected save)";
         if(seed.ends_with(selected))
             text=uiText("Seed: ")+seed.substr(0,seed.size()-selected.size())+uiText(selected);
         else text=uiText("Seed: ")+seed;
-    } else if(status.starts_with("Logic unavailable: ")) {
-        text=uiText("Logic unavailable: ")+status.substr(19);
     }
     if(koreanRequestedAtLaunch && (!koreanFontAvailable || !localization.available()))
-        text+="\nKorean font or translation resource is unavailable; English is active.";
+        text+="\nKorean window font or translation resource is unavailable; tracker windows use English.";
+    if(koreanRequestedAtLaunch && localization.available() && tracker::mapAvailable && !tracker::koreanMapTextReady())
+        text+="\n"+uiText("Korean map font is unavailable; map labels use English.");
     return text;
 }
 std::string lastChecks;
@@ -1359,7 +1358,8 @@ void filePicked(ModContext*, ModResult result, const char* const* locations, uin
 void pickSeed(ModContext*, void*) {
     if (normalGameMode) return;
     ++revision;
-    static const FileFilter filters[] = {{"Dusklight spoiler log / TPTracker JSON", "txt;json"}};
+    const auto filterLabel=uiText("Dusklight spoiler log / TPTracker JSON");
+    const FileFilter filters[] = {{filterLabel.c_str(), "txt;json"}};
     FilePickOptions options = FILE_PICK_OPTIONS_INIT;
     options.filters = filters; options.filter_count = 1;
     if (svc_file->pick_file(mod_ctx, &options, filePicked, nullptr) != MOD_OK) status = "Could not open the file picker.";
@@ -1491,7 +1491,7 @@ ModResult updateSettings(ModContext*, void*, ModError*) {
     for (int device=0;device<2;++device) {
         int64_t value=0; svc_config->get_int(mod_ctx,device ? controllerBinding : keyboardBinding,&value);
         const auto label=uiFormat(device ? "Click any button on controller to assign: {binding}" : "Click any key on keyboard to assign: {binding}",
-            {{"binding",tracker::bindingName(static_cast<int>(value),device!=0)}});
+            {{"binding",localization.bindingName(tracker::bindingName(static_cast<int>(value),device!=0))}});
         if (bindingButtons[device]) setControlLabel(bindingButtons[device],label.c_str());
     }
     return settingsStatus ? svc_ui->elem_set_text(mod_ctx, settingsStatus, displayedStatus().c_str()) : MOD_OK;
@@ -1516,11 +1516,11 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
         hideCompleted,tracker::mapEnabled,tracker::minimapEnabled,
         tracker::mapAccessibleOnly,tracker::minimapAccessibleOnly,tracker::showCheckInfoHint,tracker::showDungeonSummary,
         tracker::mapTypes,tracker::minimapTypes,statusFilters,showHintSigns,areaSort,search});
-    if(preferenceResult!=MOD_OK) return mods::set_error(error,preferenceResult,"TPTracker filter preferences could not be restored");
+    if(preferenceResult!=MOD_OK) return uiError(error,preferenceResult,"TPTracker filter preferences could not be restored");
     const auto modeResult=preferences.bind("normal-game",normalGameMode,false);
-    if(modeResult!=MOD_OK) return mods::set_error(error,modeResult,"TPTracker game mode preference could not be restored");
+    if(modeResult!=MOD_OK) return uiError(error,modeResult,"TPTracker game mode preference could not be restored");
     const auto languageResult=preferences.bind("korean-interface",koreanEnabled,true);
-    if(languageResult!=MOD_OK) return mods::set_error(error,languageResult,"TPTracker language preference could not be restored");
+    if(languageResult!=MOD_OK) return uiError(error,languageResult,"TPTracker language preference could not be restored");
     koreanRequestedAtLaunch=koreanEnabled;
     ResourceBuffer buffer = RESOURCE_BUFFER_INIT;
     if(svc_resource->load(mod_ctx,"ko.json",&buffer)==MOD_OK) {
@@ -1539,9 +1539,9 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     localization.setEnabled(koreanEnabled && koreanFontAvailable);
     buffer=RESOURCE_BUFFER_INIT;
     if (svc_resource->load(mod_ctx, "catalogue.json", &buffer) != MOD_OK)
-        return mods::set_error(error, MOD_ERROR, "TPTracker catalogue is missing");
+        return uiError(error, MOD_ERROR, "TPTracker catalogue is missing");
     try { model.load(Json::parse(static_cast<const char*>(buffer.data), static_cast<const char*>(buffer.data) + buffer.size)); }
-    catch (const std::exception& e) { svc_resource->free(mod_ctx, &buffer); return mods::set_error(error, MOD_ERROR, e.what()); }
+    catch (const std::exception& e) { svc_resource->free(mod_ctx, &buffer); return uiError(error, MOD_ERROR, e.what()); }
     svc_resource->free(mod_ctx, &buffer);
     buffer=RESOURCE_BUFFER_INIT;
     if (svc_resource->load(mod_ctx,"check_guides.json",&buffer)==MOD_OK) {
@@ -1551,39 +1551,39 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     } else mods::log::warn("TPTracker: collection-guide resource is missing");
     buffer=RESOURCE_BUFFER_INIT;
     if (svc_resource->load(mod_ctx,"hint_signs.json",&buffer)!=MOD_OK)
-        return mods::set_error(error,MOD_ERROR,"TPTracker hint sign catalogue is missing");
+        return uiError(error,MOD_ERROR,"TPTracker hint sign catalogue is missing");
     try { hintSigns=Json::parse(static_cast<const char*>(buffer.data),static_cast<const char*>(buffer.data)+buffer.size); }
-    catch (const std::exception& e) { svc_resource->free(mod_ctx,&buffer); return mods::set_error(error,MOD_ERROR,e.what()); }
+    catch (const std::exception& e) { svc_resource->free(mod_ctx,&buffer); return uiError(error,MOD_ERROR,e.what()); }
     svc_resource->free(mod_ctx,&buffer);
     buffer=RESOURCE_BUFFER_INIT;
     if (svc_resource->load(mod_ctx,"inventory.json",&buffer)!=MOD_OK)
-        return mods::set_error(error,MOD_ERROR,"TPTracker inventory artwork catalogue is missing");
+        return uiError(error,MOD_ERROR,"TPTracker inventory artwork catalogue is missing");
     try { inventoryArt=Json::parse(static_cast<const char*>(buffer.data),static_cast<const char*>(buffer.data)+buffer.size); }
-    catch (const std::exception& e) { svc_resource->free(mod_ctx,&buffer); return mods::set_error(error,MOD_ERROR,e.what()); }
+    catch (const std::exception& e) { svc_resource->free(mod_ctx,&buffer); return uiError(error,MOD_ERROR,e.what()); }
     svc_resource->free(mod_ctx,&buffer);
     HookOptions entranceOptions=HOOK_OPTIONS_INIT;
     entranceOptions.priority=1000; // capture original request before the randomizer's priority-0 rewrite
     auto entranceResult=mods::hook::add_pre<TrackerEntranceRequest>(beforeEntrance,&entranceOptions);
     if(entranceResult==MOD_OK) entranceResult=mods::hook::add_post<TrackerEntranceRequest>(afterEntrance);
     if(entranceResult==MOD_OK) entranceResult=mods::hook::add_post<TrackerEntranceArrival>(arrivedEntrance);
-    if(entranceResult!=MOD_OK) return mods::set_error(error,entranceResult,"TPTracker entrance observation hook failed");
+    if(entranceResult!=MOD_OK) return uiError(error,entranceResult,"TPTracker entrance observation hook failed");
     auto hintResult=mods::hook::add_post<HintDialogueDraw>(onDialogueDraw);
-    if (hintResult!=MOD_OK) return mods::set_error(error,hintResult,"TPTracker hint dialogue hook failed");
+    if (hintResult!=MOD_OK) return uiError(error,hintResult,"TPTracker hint dialogue hook failed");
     auto result = svc_item->observe_gives(mod_ctx, onGive, nullptr, &itemObserver);
-    if (result != MOD_OK) return mods::set_error(error, result, "TPTracker item observer failed");
+    if (result != MOD_OK) return uiError(error, result, "TPTracker item observer failed");
     result = svc_save->observe_saves(mod_ctx, onNewSave, onSaveLoaded, onSaveWritten, nullptr, &saveObserver);
-    if (result != MOD_OK) return mods::set_error(error, result, "TPTracker save observer failed");
+    if (result != MOD_OK) return uiError(error, result, "TPTracker save observer failed");
     result = mods::hook::add_post<SwitchHook>(onEngineChanged);
-    if (result != MOD_OK) return mods::set_error(error, result, "TPTracker switch hook failed");
+    if (result != MOD_OK) return uiError(error, result, "TPTracker switch hook failed");
     result = mods::hook::add_post<ChestHook>(onEngineChanged);
-    if (result != MOD_OK) return mods::set_error(error, result, "TPTracker chest hook failed");
-    result = tracker::initializeMap(&model,&localization);
+    if (result != MOD_OK) return uiError(error, result, "TPTracker chest hook failed");
+    result = tracker::initializeMap(&model,&localization,koreanRequestedAtLaunch);
     if (result != MOD_OK) mods::log::warn("TPTracker: dMenu_Fmap2DBack_c::draw hook failed ({}); checklist remains available", static_cast<int>(result));
     else mods::log::info("TPTracker: native map draw hook installed");
     mods::log::info("TPTracker: minimap hooks {}", tracker::minimapAvailable ? "installed" : "unavailable");
     result = tracker::initializeInput();
     tracker::setMapCheckHandler(inspectMapCheck,closeMapCheck);
-    if (result != MOD_OK) return mods::set_error(error, result, "TPTracker input event hook failed");
+    if (result != MOD_OK) return uiError(error, result, "TPTracker input event hook failed");
     restore();
     for (auto entry : {std::pair{"tracker-keyboard", &keyboardBinding}, std::pair{"tracker-controller", &controllerBinding}}) {
         ConfigVarDesc config=CONFIG_VAR_DESC_INIT;
