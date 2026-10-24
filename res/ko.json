@@ -1,0 +1,666 @@
+{
+  "version": 1,
+  "language": "ko",
+  "strings": {
+    "Area access": "지역 접근",
+    "Area access: ": "지역 접근: ",
+    "Local requirement": "현장 조건",
+    "Local requirement: ": "현장 조건: ",
+    "OPEN": "가능",
+    "LOCKED": "불가",
+    "UNKNOWN": "미확인",
+    "DONE": "완료",
+    "SKIPPED": "건너뜀",
+    "unknown": "미확인",
+    "Current Area": "현재 지역",
+    "All Checks": "전체 항목",
+    "Notes": "메모",
+    "Inventory": "소지품",
+    "Entrances": "출입구",
+    "How to obtain": "획득 방법",
+    "Check details": "항목 상세",
+    "Check": "항목",
+    "Item history": "획득 이력",
+    "Progression": "주요 장비",
+    "Collectibles": "수집품",
+    "Keys": "열쇠",
+    "Quest items": "퀘스트 아이템",
+    "Other": "기타",
+    "All statuses": "모든 상태",
+    "Check status": "항목 상태",
+    "Sort By": "정렬 기준",
+    "A-Z": "영문 이름순",
+    "Accessibility": "접근 가능 여부",
+    "Show hint signs": "힌트 표지판 표시",
+    "Include hint signs in this tab's check list. Read hints remain in Notes.": "이 탭의 목록에 힌트 표지판을 포함합니다. 읽은 힌트는 메모에 남습니다.",
+    "Show full logic": "전체 조건식 보기",
+    "Hide full logic": "전체 조건식 숨기기",
+    "Skip this check": "이 항목 건너뛰기",
+    "Skipped": "건너뜀",
+    "Undo skipped check?": "이 항목의 건너뛰기를 취소할까요?",
+    "Hide this check from the maps until restored.": "건너뛰기를 취소할 때까지 이 항목을 지도에서 숨깁니다.",
+    "Undo skip": "건너뛰기 취소",
+    "Undo Skip": "건너뛰기 취소",
+    "Undo": "취소",
+    "Skip": "건너뛰기",
+    "Previous page": "이전 페이지",
+    "Next page": "다음 페이지",
+    "Page (left / right)": "페이지 (왼쪽 / 오른쪽)",
+    "Page (left / right) / ": "페이지 (왼쪽 / 오른쪽) / ",
+    "Page {page} of {pages} / {shown} matching checks / {done} of {enabled} completed across all areas": "{page} / {pages} 페이지 · 검색 결과 {shown}개 · 전체 지역 {enabled}개 중 {done}개 완료",
+    "Page (left / right) / {pages} total": "페이지 (왼쪽 / 오른쪽) / 전체 {pages}페이지",
+    "No matching checks for {area}. Check the status filter, Show hint signs toggle, Filter checks text and Hide completed checks setting.": "{area}: 조건에 맞는 항목이 없습니다. 상태 필터, 힌트 표지판 표시, 항목 검색, 완료한 항목 숨기기 설정을 확인하세요.",
+    "Page ": "페이지 ",
+    " of ": " / ",
+    " total": " 전체",
+    " matching checks / ": "개 항목 일치 / ",
+    " completed across all areas": "개 완료 (전체 지역)",
+    "No matching checks for ": "조건에 맞는 항목이 없습니다: ",
+    ". Check the status filter, Show hint signs toggle, Filter checks text and Hide completed checks setting.": ". 상태 필터, 힌트 표지판 표시, 항목 검색, 완료한 항목 숨기기 설정을 확인하세요.",
+    "OPEN / green | LOCKED / red | UNKNOWN / amber | DONE / gray | SKIPPED / purple": "가능 / 초록 | 불가 / 빨강 | 미확인 / 노랑 | 완료 / 회색 | 건너뜀 / 보라",
+    "Select a check to view its requirements. Use Skip or Undo in its details window. Skipped checks are hidden on both maps.": "항목을 선택하면 조건을 볼 수 있습니다. 상세 창에서 건너뛰거나 취소할 수 있으며, 건너뛴 항목은 전체 지도와 미니맵에서 숨겨집니다.",
+    "Normal game: native inventory and story progress. No seed log needed.": "일반 게임: 실제 소지품과 스토리 진행 상황을 사용합니다. 시드 로그는 필요하지 않습니다.",
+    "Normal game: using native inventory and story progress. No seed log needed.": "일반 게임: 실제 소지품과 스토리 진행 상황을 사용합니다. 시드 로그는 필요하지 않습니다.",
+    "Enable Normal game in F1 > Mods > TPTracker, or load a randomizer seed log.": "F1 > Mods > TPTracker에서 일반 게임을 켜거나, 랜덤마이저 시드 로그를 불러오세요.",
+    "Normal game: enable 'Normal game (no randomizer)' in this panel. Randomizer: load this save's seed log.": "일반 플레이는 이 패널의 '일반 게임 (랜덤마이저 없음)'을 켜세요. 랜덤마이저는 현재 저장 데이터의 시드 로그를 불러오세요.",
+    "Updating reachability...": "접근 가능 여부를 계산하는 중...",
+    "Using this seed's shuffled entrances. Visited connections appear in Entrances.": "현재 시드의 무작위 출입구 연결을 사용합니다. 방문한 경로는 출입구 탭에 표시됩니다.",
+    "Entrance data is incomplete. Keep this save's spoiler log and seed.dat together; uncertain routes show UNKNOWN.": "출입구 데이터가 불완전합니다. 현재 저장 데이터의 스포일러 로그와 seed.dat를 같은 폴더에 두세요. 확인할 수 없는 경로는 미확인으로 표시됩니다.",
+    "Left stick or D-pad: up/down selects rows; left/right moves between the inventory and checks. Right stick: up/down selects checks; left/right changes page without resetting the row. Page buttons also work with mouse or controller.": "왼쪽 스틱 또는 방향키: 위아래로 항목을 선택하고, 좌우로 소지품과 항목 목록 사이를 이동합니다. 오른쪽 스틱: 위아래로 항목을 선택하고, 좌우로 선택 위치를 유지한 채 페이지를 바꿉니다. 페이지 버튼은 마우스와 컨트롤러 모두 지원합니다.",
+    "Check no longer available.": "이 항목을 더 이상 표시할 수 없습니다.",
+    "Reach the area, then meet the local requirement. Alternate routes are listed separately.": "해당 지역에 도달한 뒤 현장 조건을 충족해야 합니다. 다른 경로가 있으면 따로 표시됩니다.",
+    "No additional items required.": "추가 아이템이 필요하지 않습니다.",
+    "You cannot currently reach this area with the tracked inventory and native story progress.": "현재 확인된 소지품과 실제 스토리 진행 상황으로는 이 지역에 도달할 수 없습니다.",
+    "You cannot currently reach this area with the tracked inventory and seed settings.": "현재 확인된 소지품과 시드 설정으로는 이 지역에 도달할 수 없습니다.",
+    "The tracker cannot yet confirm access to this area.": "아직 이 지역의 접근 가능 여부를 확인할 수 없습니다.",
+    "Requirements are not available for this check.": "이 항목의 조건 정보가 없습니다.",
+    "Relevant items and settings": "관련 아이템 및 설정",
+    "Your relevant items": "관련 소지품",
+    "No Logic is enabled: the tracker does not lock checks by these requirements.": "No Logic이 켜져 있습니다. 이 조건으로 항목의 접근을 제한하지 않습니다.",
+    "Access uses this seed's shuffled entrance routes.": "현재 시드의 무작위 출입구 경로로 접근 가능 여부를 판단합니다.",
+    "Entrance data is incomplete. Keep the matching spoiler log and seed.dat together to confirm routes.": "출입구 데이터가 불완전합니다. 경로를 확인하려면 서로 일치하는 스포일러 로그와 seed.dat를 같은 폴더에 두세요.",
+    "Collection directions are unavailable for this check.": "이 항목의 획득 방법이 아직 없습니다.",
+    "Guide text is shown in English; a Korean translation is not yet available.": "아직 한국어 번역이 없어 공략을 영어로 표시합니다.",
+    "Collection guide only. The requirements on the left use normal-game story progress and inventory.": "획득 방법 안내입니다. 왼쪽 조건은 일반 게임의 스토리 진행 상황과 소지품을 기준으로 판단합니다.",
+    "Collection guide only. The requirements on the left use your seed settings and inventory; randomized rewards may differ.": "획득 방법 안내입니다. 왼쪽 조건은 시드 설정과 소지품을 기준으로 판단하며, 랜덤마이저에서는 보상이 달라질 수 있습니다.",
+    "Read every page of the sign. TPTracker saves the displayed hint in Notes and marks the sign done.": "표지판의 모든 페이지를 읽으세요. TPTracker가 표시된 힌트를 메모에 저장하고 표지판을 완료로 표시합니다.",
+    "Use Wolf Link's senses to reveal the insect, defeat it, and collect its drop. The game marks these insects on its own map.": "늑대 링크의 센스로 벌레를 찾아 쓰러뜨린 뒤 떨어뜨린 것을 회수하세요. 벌레의 위치는 게임 지도에도 표시됩니다.",
+    "Use Wolf Link&#39;s senses to reveal the insect, defeat it, and collect its drop. The game marks these insects on its own map.": "늑대 링크의 센스로 벌레를 찾아 쓰러뜨린 뒤 떨어뜨린 것을 회수하세요. 벌레의 위치는 게임 지도에도 표시됩니다.",
+    "Sources: ": "출처: ",
+    "Select an item to see its collected sources.": "아이템을 선택하면 획득한 장소를 볼 수 있습니다.",
+    "View collected sources": "획득한 장소 보기",
+    "Locations are revealed only for rewards you have collected. Future upgrades stay hidden. B or Escape returns to the tracker.": "이미 획득한 보상의 장소만 표시합니다. 아직 얻지 않은 강화 아이템의 위치는 숨겨집니다. B 또는 Escape로 트래커에 돌아갑니다.",
+    "Current / maximum. Progressive items show upgrade tiers; small keys include keys already used. ? = count unavailable. Artwork: Henriko Magnifico, game and randomizer item icons.": "현재 / 최대 수량입니다. 단계형 아이템은 강화 단계를, 작은 열쇠는 이미 사용한 열쇠까지 포함해 표시합니다. ?는 수량 미확인입니다. 이미지: Henriko Magnifico, 원작 및 랜덤마이저 아이템 아이콘.",
+    "Not obtained. Its location stays hidden.": "아직 획득하지 않았습니다. 위치는 숨겨집니다.",
+    "Obtained: ": "획득: ",
+    "Collected from": "획득한 장소",
+    "Starting inventory (": "시작 소지품 (",
+    "Starting inventory": "시작 소지품",
+    "Source not recorded. Normal-game tracking uses native save flags and does not require a spoiler log.": "획득 장소가 기록되지 않았습니다. 일반 게임은 실제 저장 데이터를 읽으며 스포일러 로그가 필요하지 않습니다.",
+    "Source not recorded. Load this save's spoiler log to match completed checks to rewards.": "획득 장소가 기록되지 않았습니다. 현재 저장 데이터의 스포일러 로그를 불러오면 완료한 항목과 보상을 연결할 수 있습니다.",
+    "Only completed checks are listed. Uncollected copies and upgrades stay hidden.": "완료한 항목만 표시합니다. 아직 얻지 않은 같은 아이템과 강화 아이템의 위치는 숨겨집니다.",
+    "Read hints": "읽은 힌트",
+    "Hints appear here as you read each sign. Notes and skipped checks are stored with this save; save your game to keep them.": "표지판을 읽으면 이곳에 힌트가 표시됩니다. 메모와 건너뛴 항목은 현재 저장 데이터에 기록되므로, 유지하려면 게임을 저장하세요.",
+    "No hint signs read yet.": "아직 읽은 힌트 표지판이 없습니다.",
+    "My notes": "내 메모",
+    "New note - Enter to add": "새 메모 - Enter로 추가",
+    "Delete note": "메모 삭제",
+    "Left stick or D-pad: up/down scrolls notes and hints; left/right moves between panels. Right stick also scrolls notes. Type a reminder and press Enter to post it below. Select New note to write another. Each card has its own Delete button. Up to 64 notes, 1,000 characters each (16,000 total).": "왼쪽 스틱 또는 방향키: 위아래로 메모와 힌트를 스크롤하고, 좌우로 패널 사이를 이동합니다. 오른쪽 스틱으로도 메모를 스크롤할 수 있습니다. 메모를 입력하고 Enter를 누르면 아래에 추가됩니다. 다른 메모를 쓰려면 새 메모를 선택하세요. 각 메모에는 삭제 버튼이 있습니다. 최대 64개, 메모당 1,000자, 전체 16,000자까지 저장할 수 있습니다.",
+    "Discovered entrances": "발견한 출입구",
+    "Search entrances": "출입구 검색",
+    "Connections appear after you use them. Save your game to keep this journal. Each direction is recorded separately. Search entrance names or destinations. Right stick: up/down scrolls this page.": "출입구를 이용하면 연결 경로가 표시됩니다. 이 기록을 유지하려면 게임을 저장하세요. 각 이동 방향은 따로 기록됩니다. 출입구 이름이나 목적지로 검색할 수 있습니다. 오른쪽 스틱 위아래로 페이지를 스크롤합니다.",
+    "Decoupled entrances: the return trip can lead somewhere else.": "왕복이 분리된 출입구입니다. 돌아가는 길이 다른 장소로 이어질 수 있습니다.",
+    "Keep this save's spoiler log and seed.dat together to resolve all entrance connections.": "모든 출입구 연결을 확인하려면 현재 저장 데이터의 스포일러 로그와 seed.dat를 같은 폴더에 두세요.",
+    "No entrances recorded yet. Previously visited routes cannot be reconstructed from the spoiler log; use an entrance to record it.": "아직 기록된 출입구가 없습니다. 이전에 방문한 경로는 스포일러 로그만으로 복원할 수 없습니다. 출입구를 이용하면 기록됩니다.",
+    "No discovered entrances match this search. Clear the search to show all discoveries.": "검색에 맞는 출입구가 없습니다. 검색어를 지우면 발견한 모든 출입구가 표시됩니다.",
+    "Leads to: ": "목적지: ",
+    " matching / ": "개 일치 / ",
+    " discovered | Page ": "개 발견 | 페이지 ",
+    "Cancel": "취소",
+    "Assign TPTracker shortcut": "TPTracker 단축키 지정",
+    "Release the current button, then press any controller button or trigger.": "누르고 있는 버튼을 놓은 뒤 사용할 컨트롤러 버튼이나 트리거를 누르세요.",
+    "Release the current key, then press any keyboard key. Escape cancels.": "누르고 있는 키를 놓은 뒤 사용할 키보드 키를 누르세요. Escape로 취소합니다.",
+    "Click any button on controller to assign": "컨트롤러 버튼 지정",
+    "Click any key on keyboard to assign": "키보드 단축키 지정",
+    "Click any button on controller to assign: ": "컨트롤러 버튼 지정: ",
+    "Click any key on keyboard to assign: ": "키보드 단축키 지정: ",
+    "Click any button on controller to assign: {binding}": "컨트롤러 버튼 지정: {binding}",
+    "Click any key on keyboard to assign: {binding}": "키보드 단축키 지정: {binding}",
+    "Clear controller binding": "컨트롤러 버튼 지정 해제",
+    "Clear keyboard binding": "키보드 단축키 지정 해제",
+    "Normal game (no randomizer)": "일반 게임 (랜덤마이저 없음)",
+    "Use the original game's inventory and story progress for access. Enable this for a normal playthrough; leave it off for randomizer saves. This preference is remembered across restarts.": "원작의 소지품과 스토리 진행 상황으로 접근 가능 여부를 판단합니다. 일반 플레이에서는 켜고, 랜덤마이저 저장 데이터에서는 끄세요. 재시작 후에도 설정이 유지됩니다.",
+    "Load this save's seed log / JSON": "현재 저장 데이터의 시드 로그 / JSON 불러오기",
+    "Filter checks": "항목 검색",
+    "Hide completed checks": "완료한 항목 숨기기",
+    "Native map check markers": "게임 지도에 항목 표시",
+    "Map markers unavailable on this build": "이 빌드에서는 지도 표시를 지원하지 않습니다",
+    "Minimap check dots": "미니맵에 항목 표시",
+    "Minimap hook unavailable on this build": "이 빌드에서는 미니맵 표시를 지원하지 않습니다",
+    "Minimap: Show Accessible Only": "미니맵: 접근 가능한 항목만 표시",
+    "Map: Show Accessible Only": "지도: 접근 가능한 항목만 표시",
+    "Map: Show Check Info hint (visual only)": "지도: 항목 정보 조작 안내 표시",
+    "Show only the control hint. Map check information still opens with left click or RT/R2 + A/Cross when this is off.": "조작 안내 표시만 설정합니다. 꺼도 마우스 왼쪽 클릭 또는 RT/R2 + A/Cross로 지도 항목 정보를 열 수 있습니다.",
+    "Dungeon map: Show check counts": "던전 지도: 항목 수 표시",
+    "Show accessible and remaining checks across all floors, using the selected game mode's enabled checks. Completed and skipped checks are excluded. Marker category filters do not change these totals.": "선택한 게임 모드에서 활성화된 항목을 기준으로 모든 층의 접근 가능한 항목 수와 남은 항목 수를 표시합니다. 완료하거나 건너뛴 항목은 제외합니다. 지도 표시 분류 필터는 이 합계에 영향을 주지 않습니다.",
+    "Treasure chests": "보물상자",
+    "NPC / event rewards": "NPC / 이벤트 보상",
+    "Golden bugs": "황금 곤충",
+    "Poe souls": "고스트의 혼",
+    "Golden wolves": "황금 늑대",
+    "Shop items": "상점 아이템",
+    "Owl statues": "부엉이 석상",
+    "Grotto checks": "숨겨진 동굴 항목",
+    "Freestanding Rupees": "놓여 있는 루피",
+    "Hidden Rupees": "숨겨진 루피",
+    "Map: ": "지도: ",
+    "Minimap: ": "미니맵: ",
+    "Native RmlUi tracker. The current SDK window captures game input and cannot detach onto another monitor. Filters and the normal-game option are remembered across restarts. Randomizer seed settings are stored per save slot.": "게임 내 RmlUi 트래커입니다. 현재 SDK의 창을 열면 게임 조작이 창으로 전달되며 다른 모니터로 분리할 수 없습니다. 필터와 일반 게임 설정은 재시작 후에도 유지됩니다. 랜덤마이저 시드 설정은 저장 슬롯별로 보관됩니다.",
+    "Korean (partial; restart to apply)": "한국어 (부분 번역, 재시작 후 적용)",
+    "Translate tracker menus and Kakariko/Death Mountain guides. Restart Dusklight after changing this option. Untranslated text stays in English.": "트래커 메뉴와 카카리코·데스마운틴 공략을 한국어로 표시합니다. 변경 후 Dusklight를 재시작하세요. 번역되지 않은 내용은 영어로 표시됩니다.",
+    "Language preference saved. Restart Dusklight to apply it.": "언어 설정을 저장했습니다. 적용하려면 Dusklight를 재시작하세요.",
+    "Korean font or translation resource is unavailable; English is active.": "한국어 글꼴 또는 번역 파일을 불러올 수 없어 영어로 표시합니다.",
+    "Could not save the game mode preference.": "게임 모드 설정을 저장하지 못했습니다.",
+    "Could not open tracker window.": "트래커 창을 열지 못했습니다.",
+    "Cannot open seed file.": "시드 파일을 열 수 없습니다.",
+    "Seed file is unreadable or exceeds 2 MiB.": "시드 파일을 읽을 수 없거나 크기가 2 MiB를 초과합니다.",
+    "Could not open the file picker.": "파일 선택 창을 열지 못했습니다.",
+    "Select this save's spoiler log in F1 > Mods > TPTracker.": "F1 > Mods > TPTracker에서 현재 저장 데이터의 스포일러 로그를 선택하세요.",
+    "Tracker journal exceeds save storage budget.": "트래커 기록이 저장 가능한 용량을 초과했습니다.",
+    "Seed: ": "시드: ",
+    " (selected save)": " (선택한 저장 데이터)",
+    "Logic unavailable: ": "조건 계산 불가:",
+    "Could not save the language preference.": "언어 설정을 저장하지 못했습니다."
+  },
+  "names": {
+    "Arbiters Grounds": "사막의 처형장",
+    "Bulblin Camp": "블브린 야영지",
+    "Castle Town": "하이랄 성 시내",
+    "Cave of Ordeals": "시련의 동굴",
+    "City in the Sky": "천공 도시",
+    "Cutscene": "이벤트 장면",
+    "Death Mountain": "데스마운틴",
+    "Eldin Lantern Cave": "올딘 등불 동굴",
+    "Eldin Province": "올딘 지방",
+    "Eldin Stockcave": "올딘 물자 동굴",
+    "Faron Woods": "필로네 숲",
+    "Fishing Hole": "낚시터",
+    "Forest Temple": "숲의 신전",
+    "Gerudo Desert": "겔드 사막",
+    "Goron Mines": "고론 광산",
+    "Heart Container": "생명의 그릇",
+    "Hidden Village": "잊혀진 마을",
+    "Hint Sign": "힌트 표지판",
+    "Hyrule Castle": "하이랄 성",
+    "Hyrule Field - Eldin": "하이랄 평원 - 올딘",
+    "Hyrule Field - Eldin Province": "하이랄 평원 - 올딘 지방",
+    "Hyrule Field - Faron Province": "하이랄 평원 - 필로네 지방",
+    "Hyrule Field - Lanayru": "하이랄 평원 - 라넬",
+    "Hyrule Field - Lanayru Province": "하이랄 평원 - 라넬 지방",
+    "Kakariko Graveyard": "카카리코 묘지",
+    "Kakariko Village": "카카리코 마을",
+    "Lake Hylia": "하일리아호",
+    "Lake Lantern Cave": "하일리아호 등불 동굴",
+    "Lakebed Temple": "호수의 신전",
+    "Lanayru Province": "라넬 지방",
+    "Ordona Province": "라토아누 지방",
+    "Palace of Twilight": "어둠의 궁전",
+    "Placeholder": "임시 항목",
+    "Sacred Grove": "성스러운 숲",
+    "Small Key": "작은 열쇠",
+    "Snowpeak": "스노우피크",
+    "Snowpeak Province": "스노우피크 지방",
+    "Snowpeak Ruins": "스노우피크의 폐허",
+    "Temple of Time": "시간의 신전",
+    "Upper Zoras River": "조라강 상류",
+    "Zoras Domain": "조라의 마을",
+    "Other": "기타",
+    "Lower Kakariko Village": "카카리코 마을 아래쪽",
+    "Upper Kakariko Village": "카카리코 마을 위쪽",
+    "Kakariko Barnes Bomb Shop Lower": "카카리코 반즈의 폭탄 가게 아래층",
+    "Kakariko Barnes Bomb Shop Upper": "카카리코 반즈의 폭탄 가게 위층",
+    "Kakariko Bug House": "카카리코 개미가 있는 집",
+    "Kakariko Elde Inn": "카카리코 여관",
+    "Kakariko Gorge": "카카리코 협곡",
+    "Kakariko Graveyard Pond": "카카리코 묘지 연못",
+    "Kakariko Malo Mart": "카카리코 마로마트",
+    "Kakariko Renados Sanctuary": "카카리코 레나드의 성소",
+    "Kakariko Renados Sanctuary Basement": "카카리코 레나드의 성소 지하",
+    "Kakariko Top of Watchtower": "카카리코 망루 꼭대기",
+    "Kakariko Watchtower Lower Interior": "카카리코 망루 내부 아래층",
+    "Kakariko Watchtower Upper Interior": "카카리코 망루 내부 위층",
+    "Death Mountain Trail": "데스마운틴 등산로",
+    "Death Mountain Volcano": "데스마운틴 화산",
+    "Death Mountain Hot Spring": "데스마운틴 온천",
+    "Death Mountain Outside Sumo Hall": "데스마운틴 스모장 앞",
+    "Kakariko Interiors": "카카리코 건물 내부",
+    "Kakariko Gorge Cavern": "카카리코 협곡 동굴",
+    "Ordon Shield": "어디르의 방패",
+    "Hylian Shield": "하일리아의 방패",
+    "Magic Armor": "매직 아머",
+    "Zora Armor": "조라의 옷",
+    "Shadow Crystal": "그림자 결정석 (늑대 변신)",
+    "Progressive Wallet": "지갑 (확장 단계)",
+    "Progressive Sword": "검 (강화 단계)",
+    "Gale Boomerang": "질풍의 부메랑",
+    "Spinner": "스피너",
+    "Ball and Chain": "체인 해머",
+    "Progressive Bow": "활 (강화 단계)",
+    "Progressive Clawshot": "갈고리 샷 (강화 단계)",
+    "Iron Boots": "아이언 부츠",
+    "Progressive Dominion Rod": "카피봉 (강화 단계)",
+    "Lantern": "등불",
+    "Progressive Fishing Rod": "낚싯대 (강화 단계)",
+    "Slingshot": "새총",
+    "Bomb Bag": "폭탄 주머니",
+    "Empty Bottle": "빈 병",
+    "Renados Letter": "레나드의 편지",
+    "Invoice": "청구서",
+    "Wooden Statue": "목조상",
+    "Ilias Charm": "일리아의 목걸이",
+    "Forest Temple Small Key": "숲의 신전 작은 열쇠",
+    "Goron Mines Small Key": "고론 광산 작은 열쇠",
+    "Lakebed Temple Small Key": "호수의 신전 작은 열쇠",
+    "Arbiters Grounds Small Key": "사막의 처형장 작은 열쇠",
+    "Snowpeak Ruins Small Key": "스노우피크의 폐허 작은 열쇠",
+    "Temple of Time Small Key": "시간의 신전 작은 열쇠",
+    "City in the Sky Small Key": "천공 도시 작은 열쇠",
+    "Palace of Twilight Small Key": "어둠의 궁전 작은 열쇠",
+    "Hyrule Castle Small Key": "하이랄 성 작은 열쇠",
+    "Gerudo Desert Bulblin Camp Key": "겔드 사막 블브린 야영지 열쇠",
+    "Aurus Memo": "라피넬의 메모",
+    "Asheis Sketch": "애시의 스케치",
+    "Forest Temple Big Key": "숲의 신전 보스 열쇠",
+    "Lakebed Temple Big Key": "호수의 신전 보스 열쇠",
+    "Arbiters Grounds Big Key": "사막의 처형장 보스 열쇠",
+    "Temple of Time Big Key": "시간의 신전 보스 열쇠",
+    "City in the Sky Big Key": "천공 도시 보스 열쇠",
+    "Palace of Twilight Big Key": "어둠의 궁전 보스 열쇠",
+    "Hyrule Castle Big Key": "하이랄 성 보스 열쇠",
+    "Progressive Mirror Shard": "그림자 거울 조각 (수집 수)",
+    "Male Beetle": "장수풍뎅이 수컷",
+    "Female Beetle": "장수풍뎅이 암컷",
+    "Male Butterfly": "나비 수컷",
+    "Female Butterfly": "나비 암컷",
+    "Male Stag Beetle": "사슴벌레 수컷",
+    "Female Stag Beetle": "사슴벌레 암컷",
+    "Male Grasshopper": "메뚜기 수컷",
+    "Female Grasshopper": "메뚜기 암컷",
+    "Male Phasmid": "대벌레 수컷",
+    "Female Phasmid": "대벌레 암컷",
+    "Male Pill Bug": "공벌레 수컷",
+    "Female Pill Bug": "공벌레 암컷",
+    "Male Mantis": "사마귀 수컷",
+    "Female Mantis": "사마귀 암컷",
+    "Male Ladybug": "무당벌레 수컷",
+    "Female Ladybug": "무당벌레 암컷",
+    "Male Snail": "달팽이 수컷",
+    "Female Snail": "달팽이 암컷",
+    "Male Dragonfly": "잠자리 수컷",
+    "Female Dragonfly": "잠자리 암컷",
+    "Male Ant": "개미 수컷",
+    "Female Ant": "개미 암컷",
+    "Male Dayfly": "하루살이 수컷",
+    "Female Dayfly": "하루살이 암컷",
+    "Progressive Fused Shadow": "어둠의 결정석 (수집 수)",
+    "Poe Soul": "고스트의 혼",
+    "Progressive Hidden Skill": "검의 오의 (습득 수)",
+    "Progressive Sky Book": "천공의 고문서 (완성 단계)",
+    "North Faron Woods Gate Key": "북쪽 필로네 숲 문 열쇠",
+    "Gate Keys": "관문 열쇠",
+    "Ordon Pumpkin": "어디르 호박",
+    "Ordon Cheese": "어디르 치즈",
+    "Snowpeak Ruins Bedroom Key": "스노우피크의 폐허 침실 열쇠",
+    "Goron Mines Key Shard": "고론 광산 열쇠 조각",
+    "Faron Woods Coro Key": "필로네 숲 키고르의 열쇠",
+    "Eldin Spring Underwater Chest": "올딘의 샘 물속 상자",
+    "Eldin Spring Underwater Boulder Rupee": "올딘의 샘 물속 바위 밑 루피",
+    "Kakariko Village Bomb Rock Spire Heart Piece": "카카리코 마을 높은 바위 하트 조각",
+    "Kakariko Village Bell Rupee": "카카리코 마을 종 속 루피",
+    "Kakariko Village Hot Spring Ledge Box Rupee": "카카리코 마을 온천 옆 선반 상자 루피",
+    "Kakariko Village Spring Shortcut Box Rupee 1": "카카리코 마을 샘 지름길 상자 루피 1",
+    "Kakariko Village Spring Shortcut Box Rupee 2": "카카리코 마을 샘 지름길 상자 루피 2",
+    "Kakariko Village Malo Mart Hawkeye": "카카리코 마로마트 호크아이",
+    "Kakariko Village Malo Mart Hylian Shield": "카카리코 마로마트 하일리아의 방패",
+    "Kakariko Village Malo Mart Red Potion": "카카리코 마로마트 빨간 포션",
+    "Kakariko Village Malo Mart Wooden Shield": "카카리코 마로마트 나무 방패",
+    "Kakariko Inn Chest": "카카리코 여관 상자",
+    "Kakariko Village Female Ant": "카카리코 마을 개미 암컷",
+    "Kakariko Village Ant House Ledge Box Rupee": "카카리코 마을 개미 집 위 선반 상자 루피",
+    "Barnes Bomb Bag": "반즈의 폭탄 주머니",
+    "Kakariko Village Bomb Shop Poe": "카카리코 마을 폭탄 가게 고스트",
+    "Kakariko Village Watchtower Poe": "카카리코 마을 망루 고스트",
+    "Kakariko Watchtower Alcove Chest": "카카리코 망루 옆 움푹한 턱 상자",
+    "Kakariko Watchtower Chest": "카카리코 망루 상자",
+    "Talo Sharpshooting": "타로의 활쏘기",
+    "Ilia Memory Reward": "일리아의 기억 회복 보상",
+    "Shad Dominion Rod": "시어드의 카피봉 복원",
+    "Rutelas Blessing": "루테라의 축복",
+    "Gift From Ralis": "랠리스의 선물",
+    "Kakariko Graveyard Lantern Chest": "카카리코 묘지 등불 상자",
+    "Kakariko Graveyard Male Ant": "카카리코 묘지 개미 수컷",
+    "Kakariko Graveyard Underwater Boulder Rupee": "카카리코 묘지 물속 바위 밑 루피",
+    "Kakariko Graveyard Golden Wolf": "카카리코 묘지 황금 늑대",
+    "Kakariko Graveyard Open Poe": "카카리코 묘지 야외 고스트",
+    "Kakariko Graveyard Grave Poe": "카카리코 묘지 무덤 속 고스트",
+    "Death Mountain Alcove Chest": "데스마운틴 등산로 높은 턱 상자",
+    "Death Mountain Volcano Ledge Rupee 1": "데스마운틴 화산 높은 턱 루피 1",
+    "Death Mountain Volcano Ledge Rupee 2": "데스마운틴 화산 높은 턱 루피 2",
+    "Death Mountain Volcano Ledge Rupee 3": "데스마운틴 화산 높은 턱 루피 3",
+    "Death Mountain Volcano Pipe Ledge Rock Rupee": "데스마운틴 화산 파이프 아래 바위 루피",
+    "Death Mountain Trail Poe": "데스마운틴 등산로 고스트",
+    "Sanctuary Basement Twilit Insect 1": "성소 지하 어둠의 벌레 1",
+    "Sanctuary Basement Twilit Insect 2": "성소 지하 어둠의 벌레 2",
+    "Sanctuary Basement Twilit Insect 3": "성소 지하 어둠의 벌레 3",
+    "Kakariko Graveyard Twilit Insect": "카카리코 묘지 어둠의 벌레",
+    "Kakariko Malo Mart Twilit Insect": "카카리코 마로마트 어둠의 벌레",
+    "Kakariko Inn Pipe Twilit Insect": "카카리코 여관 굴뚝 어둠의 벌레",
+    "Kakariko Inn Bedroom Twilit Insect": "카카리코 여관 침실 어둠의 벌레",
+    "Kakariko Bug House Twilit Insect": "카카리코 개미 집 어둠의 벌레",
+    "Barnes Bomb Shop Twilit Insect": "반즈의 폭탄 가게 어둠의 벌레",
+    "Kakariko Destroyed Building Twilit Insect 1": "카카리코 폭발한 건물 어둠의 벌레 1",
+    "Kakariko Destroyed Building Twilit Insect 2": "카카리코 폭발한 건물 어둠의 벌레 2",
+    "Kakariko Destroyed Building Twilit Insect 3": "카카리코 폭발한 건물 어둠의 벌레 3",
+    "Kakariko Watchtower Twilit Insect": "카카리코 망루 어둠의 벌레",
+    "Death Mountain Trail Twilit Insect Near Howling Stone": "데스마운틴 울음돌 근처 어둠의 벌레",
+    "Death Mountain Trail Twilit Insect on Wall": "데스마운틴 벽 위 어둠의 벌레",
+    "Death Mountain Trail Twilit Insect in Hot Spring": "데스마운틴 온천 어둠의 벌레",
+    "Kakariko Village Hint Sign": "카카리코 마을 힌트 표지판",
+    "Kakariko Graveyard Hint Sign": "카카리코 묘지 힌트 표지판"
+  },
+  "guides": {
+    "Eldin Spring Underwater Chest": {
+      "steps": [
+        "카카리코 마을 남쪽 입구로 들어서면 바로 보이는 올딘의 샘에 있습니다.",
+        "샘 안쪽을 막은 바위를 폭탄으로 부순 뒤 아이언 부츠를 신고 바닥으로 가라앉으세요. 가장 깊은 곳에 상자가 있습니다."
+      ]
+    },
+    "Eldin Spring Underwater Boulder Rupee": {
+      "steps": [
+        "올딘의 샘 안쪽 물속에 있는 바위 아래에 있습니다."
+      ]
+    },
+    "Kakariko Village Bomb Rock Spire Heart Piece": {
+      "steps": [
+        "카카리코 마을 남쪽 끝에서 높은 곳의 바위를 폭탄 화살로 부순 뒤, 드러난 아이템을 질풍의 부메랑으로 가져오세요."
+      ]
+    },
+    "Kakariko Village Bell Rupee": {
+      "steps": [
+        "성소 위의 종 안에 숨어 있습니다. 폭탄 화살, 또는 부메랑과 폭탄을 이용해 종을 맞히면 루피가 나타납니다."
+      ]
+    },
+    "Kakariko Village Hot Spring Ledge Box Rupee": {
+      "steps": [
+        "온천 옆 높은 턱 위의 나무 상자 안에 있습니다."
+      ]
+    },
+    "Kakariko Village Spring Shortcut Box Rupee 1": {
+      "steps": [
+        "올딘의 샘 안쪽으로 통하는 길을 막은 바위 뒤의 나무 상자 안에 있습니다."
+      ]
+    },
+    "Kakariko Village Spring Shortcut Box Rupee 2": {
+      "steps": [
+        "올딘의 샘 안쪽으로 통하는 길을 막은 바위 뒤의 나무 상자 안에 있습니다."
+      ]
+    },
+    "Kakariko Village Malo Mart Hawkeye": {
+      "steps": [
+        "카카리코 마을의 마로마트에 들어가 원래 호크아이를 파는 상품 칸의 물건을 구매하세요. 구매에 필요한 조건은 왼쪽에서 확인하세요."
+      ]
+    },
+    "Kakariko Village Malo Mart Hylian Shield": {
+      "steps": [
+        "카카리코 마을의 마로마트에 들어가 원래 하일리아의 방패를 파는 상품 칸의 물건을 구매하세요. 구매에 필요한 조건은 왼쪽에서 확인하세요."
+      ]
+    },
+    "Kakariko Village Malo Mart Red Potion": {
+      "steps": [
+        "카카리코 마을의 마로마트에 들어가 원래 빨간 포션을 파는 상품 칸의 물건을 구매하세요. 구매에 필요한 조건은 왼쪽에서 확인하세요."
+      ]
+    },
+    "Kakariko Village Malo Mart Wooden Shield": {
+      "steps": [
+        "카카리코 마을의 마로마트에 들어가 원래 나무 방패를 파는 상품 칸의 물건을 구매하세요. 구매에 필요한 조건은 왼쪽에서 확인하세요."
+      ]
+    },
+    "Kakariko Inn Chest": {
+      "steps": [
+        "카카리코 마을 큰길에 있는 여관 안에 있습니다.",
+        "1층 계단 아래에 작은 상자가 숨겨져 있습니다. 계단 밑으로 돌아가 찾아보세요."
+      ]
+    },
+    "Kakariko Village Female Ant": {
+      "steps": [
+        "카카리코 여관 맞은편, 지붕이 무너진 집 안에 있습니다.",
+        "집 안에서 기어 다니는 황금 개미에게 다가가 잡으세요."
+      ]
+    },
+    "Kakariko Village Ant House Ledge Box Rupee": {
+      "steps": [
+        "개미가 있는 집 위쪽 턱의 나무 상자 안에 있습니다."
+      ]
+    },
+    "Barnes Bomb Bag": {
+      "steps": [
+        "카카리코 마을 큰길 중간쯤에 있는 작은 가게, 반즈의 폭탄 가게에서 팝니다.",
+        "반즈에게 말을 걸어 구매하세요. 가격은 120루피입니다. 일반 게임에서는 고론 광산 클리어 후 구매할 수 있습니다."
+      ]
+    },
+    "Kakariko Village Bomb Shop Poe": {
+      "steps": [
+        "원작 스토리에서 폭탄 가게가 폭발한 뒤, 카카리코 마을 반즈의 폭탄 가게 잔해에 있습니다.",
+        "가게가 잔해로 변한 뒤 늑대 링크로 들어가 센스로 고스트를 찾아 쓰러뜨리세요."
+      ]
+    },
+    "Kakariko Village Watchtower Poe": {
+      "steps": [
+        "카카리코 마을 가장 높은 곳인 북쪽 끝의 목조 망루 아래에 있습니다.",
+        "밤에 늑대 링크로 다가가 센스로 고스트를 찾은 뒤 쓰러뜨리세요."
+      ]
+    },
+    "Kakariko Watchtower Alcove Chest": {
+      "steps": [
+        "카카리코 마을 꼭대기 망루 근처의 높은 턱에 있습니다. 그냥 점프로는 닿지 않습니다.",
+        "남쪽 입구 근처에서 바위를 부숴 갇힌 꼬꼬를 꺼내세요. 한 마리를 들고 마을을 올라 망루까지 간 뒤, 망루 꼭대기에서 활공해 상자가 있는 움푹한 턱으로 내려가세요."
+      ]
+    },
+    "Kakariko Watchtower Chest": {
+      "steps": [
+        "카카리코 마을 가장 높은 곳의 목조 망루 안에 있습니다.",
+        "사다리를 타고 올라가면 맨 위 발판에 상자가 있습니다."
+      ]
+    },
+    "Talo Sharpshooting": {
+      "steps": [
+        "카카리코 마을 망루 꼭대기에서 타로가 여는 표적 맞히기 미니게임입니다.",
+        "고론 광산을 클리어한 뒤 망루에 올라 타로에게 말을 거세요. 이 미니게임은 광산 클리어 후에 시작됩니다. 활로 표적 3개를 맞히면 성공합니다."
+      ]
+    },
+    "Renados Letter": {
+      "steps": [
+        "일리아의 기억을 되찾는 퀘스트를 진행해 필요한 조건을 충족한 뒤, 카카리코 성소 안의 레나드에게 말을 걸면 편지 보상을 받습니다."
+      ]
+    },
+    "Ilia Memory Reward": {
+      "steps": [
+        "기억을 잃은 일리아가 머무는 카카리코 마을 레나드의 집, 즉 성소 안에서 받습니다.",
+        "일리아에게 목걸이(일리아의 목걸이 / 말피리)를 보여 주면 기억이 돌아오고 아이템을 받습니다."
+      ]
+    },
+    "Shad Dominion Rod": {
+      "steps": [
+        "카카리코 마을 레나드의 성소 지하에서 시어드를 찾으세요. 천공의 고문서를 보여 주고 대화를 끝까지 진행하세요."
+      ]
+    },
+    "Rutelas Blessing": {
+      "steps": [
+        "카카리코 묘지에서 받습니다. 일반 게임에서는 조라 왕자 랠리스가 탄 마차를 카카리코 마을까지 무사히 호위한 뒤 루테라 여왕의 영혼이 나타납니다.",
+        "묘지를 가로질러 이동하는 여왕을 따라가세요. 안쪽의 조라 왕가 무덤으로 안내한 뒤 링크에게 축복, 즉 조라의 옷을 줍니다."
+      ]
+    },
+    "Gift From Ralis": {
+      "steps": [
+        "카카리코 묘지의 조라 무덤에 있는 랠리스를 찾아가세요. 애시의 스케치를 보여 주고 대화를 끝까지 진행하면 보상을 받습니다."
+      ]
+    },
+    "Kakariko Graveyard Lantern Chest": {
+      "steps": [
+        "카카리코 묘지 뒤쪽, 안쪽 구역으로 올라가는 계단 근처에 있습니다.",
+        "꺼져 있는 횃불에 등불로 불을 붙이면 상자가 나타납니다."
+      ]
+    },
+    "Kakariko Graveyard Male Ant": {
+      "steps": [
+        "카카리코 묘지에서 조라 무덤으로 기어 들어가는 통로 근처, 나무 밑에 있습니다.",
+        "곤충에게 다가가 잡으세요. 별도 조건은 없습니다."
+      ]
+    },
+    "Kakariko Graveyard Underwater Boulder Rupee": {
+      "steps": [
+        "조라 무덤 구역의 물속 바위 아래에 있습니다."
+      ]
+    },
+    "Kakariko Graveyard Golden Wolf": {
+      "steps": [
+        "마을 성소 뒤편의 카카리코 묘지에 있습니다. 조라 무덤으로 기어 들어가는 통로를 가린 석판 앞에 서 있습니다.",
+        "스노우피크의 울음돌에서 울부짖어 황금 늑대를 불러낸 뒤, 인간 모습으로 찾아가세요. 용사의 혼과 만나는 공간에 들어가 검의 오의를 배울 수 있습니다."
+      ]
+    },
+    "Kakariko Graveyard Open Poe": {
+      "steps": [
+        "밤에 카카리코 묘지에서 모습을 드러내고 떠다닙니다. 별도 장치를 풀 필요 없이 들어가면 고스트의 등불을 볼 수 있습니다.",
+        "늑대 링크로 다가가 쓰러뜨리세요."
+      ]
+    },
+    "Kakariko Graveyard Grave Poe": {
+      "steps": [
+        "카카리코 묘지에 있습니다. 밀어서 옆으로 움직일 수 있는 묘비 중 하나를 밀면 숨어 있던 고스트가 나옵니다.",
+        "늑대 링크로 다가간 뒤, 고스트가 나타나면 쓰러뜨리세요."
+      ]
+    },
+    "Death Mountain Alcove Chest": {
+      "steps": [
+        "데스마운틴 입구의 문을 지난 뒤 화산 구역에 닿기 전, 등산로 위쪽의 턱에 있습니다.",
+        "올라가는 방법은 두 가지입니다. 고론 광산 클리어 전에는 갈고리 샷으로 길 위쪽 턱에서 늘어진 덩굴을 잡으세요. 광산 클리어 후에는 갈고리 샷을 쓰거나, 턱 아래의 고론 위에 올라서서 위로 날려 보내 달라고 하면 됩니다."
+      ]
+    },
+    "Death Mountain Volcano Ledge Rupee 1": {
+      "steps": [
+        "산 정상에서 고론의 도움을 받아 높은 턱으로 날아 올라가세요."
+      ]
+    },
+    "Death Mountain Volcano Ledge Rupee 2": {
+      "steps": [
+        "산 정상에서 고론의 도움을 받아 높은 턱으로 날아 올라가세요."
+      ]
+    },
+    "Death Mountain Volcano Ledge Rupee 3": {
+      "steps": [
+        "산 정상에서 고론의 도움을 받아 높은 턱으로 날아 올라가세요."
+      ]
+    },
+    "Death Mountain Volcano Pipe Ledge Rock Rupee": {
+      "steps": [
+        "가장 낮은 파이프 아래에 바위가 놓인 턱이 있습니다. 고론의 도움으로 그 턱에 올라가 획득하세요."
+      ]
+    },
+    "Death Mountain Trail Poe": {
+      "steps": [
+        "데스마운틴으로 올라가는 길 옆의 높은 턱에 있습니다.",
+        "아래쪽의 우호적인 고론 위에 서서 턱 위로 날아 올라가세요. 늑대 링크로 다가가 고스트를 쓰러뜨리세요."
+      ]
+    },
+    "Sanctuary Basement Twilit Insect 1": {
+      "steps": [
+        "성소의 촛불을 켠 뒤 석상에 열린 통로로 내려가세요."
+      ]
+    },
+    "Sanctuary Basement Twilit Insect 2": {
+      "steps": [
+        "성소의 촛불을 켠 뒤 석상에 열린 통로로 내려가세요."
+      ]
+    },
+    "Sanctuary Basement Twilit Insect 3": {
+      "steps": [
+        "성소의 촛불을 켠 뒤 석상에 열린 통로로 내려가세요."
+      ]
+    },
+    "Kakariko Graveyard Twilit Insect": {
+      "steps": [
+        "묘지에서 벌레가 표시된 위치의 땅을 파세요."
+      ]
+    },
+    "Kakariko Malo Mart Twilit Insect": {
+      "steps": [
+        "안으로 기어 들어가 계산대 뒤의 선반을 올라가세요."
+      ]
+    },
+    "Kakariko Inn Pipe Twilit Insect": {
+      "steps": [
+        "불붙은 나뭇가지로 여관 벽난로에 불을 붙이세요."
+      ]
+    },
+    "Kakariko Inn Bedroom Twilit Insect": {
+      "steps": [
+        "위층 침실의 벽을 살펴보세요."
+      ]
+    },
+    "Kakariko Bug House Twilit Insect": {
+      "steps": [
+        "덧댄 지붕을 뚫고 아래로 떨어진 뒤 나무 상자를 미세요."
+      ]
+    },
+    "Barnes Bomb Shop Twilit Insect": {
+      "steps": [
+        "위층으로 들어가 벽에 붙은 선반에 몸통박치기하세요."
+      ]
+    },
+    "Kakariko Destroyed Building Twilit Insect 1": {
+      "steps": [
+        "건물의 벽난로에 불을 붙이고 밖으로 빠져나온 뒤, 벌레가 떨어뜨린 것을 회수하세요."
+      ]
+    },
+    "Kakariko Destroyed Building Twilit Insect 2": {
+      "steps": [
+        "건물의 벽난로에 불을 붙이고 밖으로 빠져나온 뒤, 벌레가 떨어뜨린 것을 회수하세요."
+      ]
+    },
+    "Kakariko Destroyed Building Twilit Insect 3": {
+      "steps": [
+        "건물의 벽난로에 불을 붙이고 밖으로 빠져나온 뒤, 벌레가 떨어뜨린 것을 회수하세요."
+      ]
+    },
+    "Kakariko Watchtower Twilit Insect": {
+      "steps": [
+        "망루 아래의 땅을 파서 들어간 뒤 안쪽의 나무통을 부수세요."
+      ]
+    },
+    "Death Mountain Trail Twilit Insect Near Howling Stone": {
+      "steps": [
+        "증기 분출구와 울음돌 근처의 땅을 파세요."
+      ]
+    },
+    "Death Mountain Trail Twilit Insect on Wall": {
+      "steps": [
+        "어둠의 사자와 싸우는 곳 옆의 문에 몸통박치기하세요."
+      ]
+    },
+    "Death Mountain Trail Twilit Insect in Hot Spring": {
+      "steps": [
+        "미드나의 도움으로 산을 뛰어 오른 뒤 온천으로 내려가세요."
+      ]
+    },
+    "Kakariko Village Hint Sign": {
+      "steps": [
+        "여관 위쪽에 있는 온천 근처에 있습니다."
+      ]
+    },
+    "Kakariko Graveyard Hint Sign": {
+      "steps": [
+        "조라 무덤 뒤에 있습니다."
+      ]
+    }
+  }
+}
