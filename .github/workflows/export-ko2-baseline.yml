@@ -1,0 +1,23 @@
+name: Export ko2 baseline
+on:
+  push:
+    branches: [ko3-integration]
+    paths: ['.github/workflows/export-ko2-baseline.yml']
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Package old source files
+        shell: bash
+        run: |
+          mkdir -p export
+          zip -q -9 export/ko2-files.zip CMakeLists.txt NORMAL_GAME_KO.md README.md mod.json res/fonts/map-ko.bti res/fonts/map-ko.json res/ko.json src/localization.hpp src/localized_controls.hpp src/map.cpp src/map.hpp src/mod.cpp tests/localization_tests.cpp tests/localized_controls_tests.cpp tests/map_text_tests.cpp
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ko2-baseline-files
+          path: export/ko2-files.zip
+          retention-days: 1
