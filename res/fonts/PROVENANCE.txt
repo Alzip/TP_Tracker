@@ -31,3 +31,12 @@ The mod copies this resource to its own host-provided cache directory, then
 registers a TPTrackerKorean alias and a fallback face with RmlUi @font-face.
 The font file and its embedded family name are not modified. Host font files
 are not replaced. Native game-map JUT fonts are outside this UI font path.
+
+Native tracker-map glyph atlas (ko2):
+- map-ko.bti and map-ko.json are rasterized display assets generated from the
+  unmodified font above by tools/build_map_font.py. They are not a replacement
+  font and do not alter the original font's names, tables or outlines.
+- Input characters are taken from the Korean resource's names/UI strings,
+  plus printable ASCII and the truncation ellipsis. The generator rejects
+  missing glyphs instead of silently substituting tofu.
+- The font's OFL and copyright notice are distributed alongside these assets.
