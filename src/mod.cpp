@@ -1,4 +1,6 @@
 #include "inventory_adapters.hpp"
+#include "vanilla.hpp"
+#include "vanilla_completion.hpp"
 #include "model.hpp"
 #include "entrance_journal.hpp"
 #include "notebook.hpp"
@@ -19,6 +21,7 @@
 #include "d/d_item.h"
 #include "d/d_msg_object.h"
 #include "d/d_msg_class.h"
+#include "d/actor/d_a_player.h"
 #include "f_op/f_op_actor_mng.h"
 #include "f_pc/f_pc_name.h"
 #include <chrono>
@@ -113,6 +116,7 @@ SaveObserverHandle saveObserver = 0;
 bool dirty = true, allChecks = false, hideCompleted = false;
 bool engineDirty = false;
 bool seedRefreshPending = false;
+bool normalGameMode = false;
 int statusFilters[2]{};
 bool showHintSigns[2]{true,true};
 tracker::PreferenceStore preferences;
@@ -355,7 +359,7 @@ void backupCard() {
         !tracker::backupSelectedCard(std::filesystem::u8path(path),error) && !error.empty())
         mods::log::warn("TPTracker: card backup failed: {}",error);
 }
-void restore(bool autoSeed = true) {
+void restore(bool autoSeed = true, const std::string* liveJournal = nullptr) {
     if(itemWindow) svc_ui->window_close(mod_ctx,itemWindow);
     if(detailWindow) svc_ui->window_close(mod_ctx,detailWindow);
     backupCard();
@@ -364,14 +368,14 @@ void restore(bool autoSeed = true) {
     ++revision;
     journal.clear();
     hintNotes=Json::object(); manualNotes.clear(); personalNotes.clear(); notebookDirty=false;
-    size_t size = 0;
-    if (svc_save->get_blob(mod_ctx, blobName, nullptr, &size) == MOD_OK && size <= SAVE_BLOB_BUDGET_BYTES) {
-        std::string text(size, '\0');
-        if (svc_save->get_blob(mod_ctx, blobName, text.data(), &size) == MOD_OK) {
+    size_t size = liveJournal ? liveJournal->size() : 0;
+    if ((liveJournal || svc_save->get_blob(mod_ctx, blobName, nullptr, &size) == MOD_OK) && size <= SAVE_BLOB_BUDGET_BYTES) {
+        std::string text = liveJournal ? *liveJournal : std::string(size, '\0');
+        if (liveJournal || svc_save->get_blob(mod_ctx, blobName, text.data(), &size) == MOD_OK) {
             try {
                 auto value = Json::parse(text);
                 if (value.at("version") != 1) throw std::runtime_error("Unsupported journal version");
-                if (!value.value("seed", std::string{}).empty()) model.loadSeed(text);
+                if (!normalGameMode && !value.value("seed", std::string{}).empty()) model.loadSeed(text);
                 for (const auto& name : value.at("checks"))
                     if (model.aliases.contains(name.get<std::string>())) journal.insert(name.get<std::string>());
                 model.obtained = journal;
@@ -398,12 +402,15 @@ void restore(bool autoSeed = true) {
     }
     const char* dataPath = nullptr;
     std::string seedError;
-    if (autoSeed && svc_host->data_dir(mod_ctx, &dataPath) == MOD_OK && dataPath &&
+    if (normalGameMode) {
+        model.loadVanilla();
+        status = "Normal game: using native inventory and story progress. No seed log needed.";
+    } else if (autoSeed && svc_host->data_dir(mod_ctx, &dataPath) == MOD_OK && dataPath &&
         tracker::loadSelectedSeed(model, std::filesystem::u8path(dataPath).parent_path(), seedError)) {
         status = "Seed: " + model.seed + " (selected save)";
     } else {
         if (!seedError.empty()) mods::log::warn("TPTracker: selected save seed metadata unavailable: {}. Preserve the card, its .mods folder and the matching randomizer seed folder together.",seedError);
-        status = model.seedLoaded ? "Seed: " + model.seed : "Load this save's spoiler log in F1. Automatic seed lookup needs a saved randomizer slot.";
+        status = model.seedLoaded ? "Seed: " + model.seed : "Normal game: enable 'Normal game (no randomizer)' in this panel. Randomizer: load this save's seed log.";
     }
     dirty = true;
     nextScan = {};
@@ -530,12 +537,36 @@ void scan() {
         model.countedItems.insert(small);
         inventory[std::string(key.name) + (key.save == 0x14 ? " Bedroom Key" : " Big Key")] = dComIfGs_isDungeonItemBossKey(key.save) != 0;
     }
+    if (model.normalGame) {
+        tracker::vanillaInventory(inventory,
+            [](int id) { return dComIfGs_isItemFirstBit(static_cast<u8>(id)) != 0; },
+            [](int slot) { return dComIfGs_getItem(slot,false); },
+            [](int event) { return savedEvent(static_cast<unsigned>(event)); },
+            [](int save, int flag) { return dComIfGs_isStageSwitch(save,flag) != 0; });
+        inventory["Progressive Wallet"] = dComIfGs_getWalletSize();
+        int province=0;
+        for (const char* name : {"Faron","Eldin","Lanayru"})
+            inventory[std::string("Vanilla ")+name+" Twilight Cleared"] = dComIfGs_isDarkClearLV(province++) != 0;
+        int dungeon=0x10;
+        for (const char* name : {"Forest Temple","Goron Mines","Lakebed Temple","Arbiters Grounds",
+                                "Snowpeak Ruins","Temple of Time","City in the Sky","Palace of Twilight"})
+            inventory[std::string("Vanilla ")+name+" Complete"] = dComIfGs_isStageBossEnemy(dungeon++) != 0;
+        inventory["Vanilla Current Wolf Form"] = dComIfGp_getLinkPlayer() && daPy_py_c::checkNowWolf();
+    }
     std::set<std::string> hiddenMarkers;
     auto completed = journal;
     for (const auto& check : model.catalogue.at("checks")) {
         if (check.contains("map_hide_event") && savedEvent(check.at("map_hide_event").get<unsigned>()))
             hiddenMarkers.insert(check.at("name").get<std::string>());
-        for (const auto& flag : check.at("flags"))
+        const auto nativeComplete = model.normalGame ? tracker::vanillaCompletionOverride(check,
+            [](int event) { return savedEvent(static_cast<unsigned>(event)); },
+            [](int id) { return dComIfGs_isItemFirstBit(static_cast<u8>(id)) != 0; },
+            [](int save) { return dComIfGs_isStageLife(save) != 0; },
+            [](int index) { return dComIfGs_isCollectCrystal(index) != 0; },
+            [](int index) { return dComIfGs_isCollectMirror(index) != 0; }) : std::nullopt;
+        if (nativeComplete.has_value()) {
+            if (*nativeComplete) completed.insert(check.at("name").get<std::string>());
+        } else for (const auto& flag : check.at("flags"))
             if (flagObtained(flag)) { completed.insert(check.at("name").get<std::string>()); break; }
         // Only vanilla bugs can be correlated with inventory; a shuffled bug item
         // proves nothing about the original bug's location.
@@ -735,7 +766,8 @@ std::string checksRml() {
         rml += "<div class='tp-note'>" + tracker::escape(model.catalogue.at("stage_labels").value(model.stage, model.stage)) + "</div>";
     rml += "<div class='tp-note'>OPEN / green | LOCKED / red | UNKNOWN / amber | DONE / gray | SKIPPED / purple</div>";
     rml += "<div class='tp-note'>Select a check to view its requirements. Use Skip or Undo in its details window. Skipped checks are hidden on both maps.</div>";
-    if (!model.seedLoaded) rml += "<div class='tp-note'>Load a seed log to evaluate logic.</div>";
+    if (model.normalGame) rml += "<div class='tp-note'>Normal game: native inventory and story progress. No seed log needed.</div>";
+    if (!model.seedLoaded && !model.normalGame) rml += "<div class='tp-note'>Enable Normal game in F1 > Mods > TPTracker, or load a randomizer seed log.</div>";
     else if (logicRequested || logicJob.valid()) rml += "<div class='tp-note'>Updating reachability...</div>";
     if(model.shuffled) rml += model.entrancesComplete ? "<div class='tp-note'>Using this seed's shuffled entrances. Visited connections appear in Entrances.</div>" : "<div class='tp-note'>Entrance data is incomplete. Keep this save's spoiler log and seed.dat together; uncertain routes show UNKNOWN.</div>";
     rml += "<div class='tp-note'>Left stick or D-pad: up/down selects rows; left/right moves between the inventory and checks. Right stick: up/down selects checks; left/right changes page without resetting the row. Page buttons also work with mouse or controller.</div>";
@@ -1209,6 +1241,8 @@ void pollShortcut() {
 }
 void filePicked(ModContext*, ModResult result, const char* const* locations, uint32_t count, const char*, void*) {
     if (result != MOD_OK || count != 1) return;
+    // A file picker can finish after the user changed modes.
+    if (normalGameMode) return;
     ++revision;
     FileStreamHandle stream = 0;
     uint64_t size = 0, read = 0;
@@ -1232,6 +1266,7 @@ void filePicked(ModContext*, ModResult result, const char* const* locations, uin
     } catch (const std::exception& e) { status = e.what(); mods::log::warn("TPTracker: {}", e.what()); }
 }
 void pickSeed(ModContext*, void*) {
+    if (normalGameMode) return;
     ++revision;
     static const FileFilter filters[] = {{"Dusklight spoiler log / TPTracker JSON", "txt;json"}};
     FilePickOptions options = FILE_PICK_OPTIONS_INIT;
@@ -1248,6 +1283,24 @@ void miniGet(ModContext*,void*,UiControlValue* v) { v->bool_value=tracker::minim
 void miniSet(ModContext*,void*,const UiControlValue* v) { if(tracker::minimapAvailable) savePreference(tracker::minimapEnabled,v->bool_value); }
 void typeGet(ModContext*,void* ptr,UiControlValue* v) { v->bool_value=*static_cast<bool*>(ptr); }
 void typeSet(ModContext*,void* ptr,const UiControlValue* v) { savePreference(*static_cast<bool*>(ptr),v->bool_value); }
+bool seedPickerDisabled(ModContext*,void*) { return normalGameMode; }
+void normalGameGet(ModContext*,void*,UiControlValue* value) { value->bool_value=normalGameMode; }
+void normalGameSet(ModContext*,void*,const UiControlValue* value) {
+    if (value->bool_value==normalGameMode) return;
+    const auto result=preferences.set(normalGameMode,value->bool_value);
+    if (result!=MOD_OK) {
+        status="Could not save the game mode preference.";
+        ++revision;
+        return;
+    }
+    // Carry unsaved notes/checks through the mode change even before a save
+    // slot is available. Never replace them with an older persisted journal.
+    const auto liveJournal=journalText();
+    if (window) svc_ui->window_close(mod_ctx,window);
+    restore(true,&liveJournal);
+    persist();
+    checkPage=0; stickRow=-1;
+}
 ModResult buildSettings(ModContext*, UiElementHandle pane, void*, ModError*) {
     settingsStatus = 0;
     UiControlDesc control = UI_CONTROL_DESC_INIT;
@@ -1266,7 +1319,14 @@ ModResult buildSettings(ModContext*, UiElementHandle pane, void*, ModError*) {
         if (result!=MOD_OK) return result;
     }
     control = UI_CONTROL_DESC_INIT;
+    control.kind = UI_CONTROL_TOGGLE; control.label = "Normal game (no randomizer)";
+    control.help_rml="Use the original game's inventory and story progress for access. Enable this for a normal playthrough; leave it off for randomizer saves. This preference is remembered across restarts.";
+    control.get=normalGameGet; control.set=normalGameSet;
+    result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
+    if (result != MOD_OK) return result;
+    control = UI_CONTROL_DESC_INIT;
     control.kind = UI_CONTROL_BUTTON; control.label = "Load this save's seed log / JSON"; control.on_pressed = pickSeed;
+    control.is_disabled=seedPickerDisabled;
     result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
     if (result != MOD_OK) return result;
     control = UI_CONTROL_DESC_INIT;
@@ -1301,7 +1361,7 @@ ModResult buildSettings(ModContext*, UiElementHandle pane, void*, ModError*) {
     if(result!=MOD_OK) return result;
     control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_TOGGLE;
     control.label="Dungeon map: Show check counts";
-    control.help_rml="Show accessible and remaining checks across all floors, using this seed's enabled checks. Completed and skipped checks are excluded. Marker category filters do not change these totals.";
+    control.help_rml="Show accessible and remaining checks across all floors, using the selected game mode's enabled checks. Completed and skipped checks are excluded. Marker category filters do not change these totals.";
     control.get=typeGet; control.set=typeSet; control.user_data=&tracker::showDungeonSummary;
     result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
     if(result!=MOD_OK) return result;
@@ -1316,7 +1376,7 @@ ModResult buildSettings(ModContext*, UiElementHandle pane, void*, ModError*) {
     result = svc_ui->pane_add_text(mod_ctx, pane, status.c_str(), &settingsStatus);
     if (result != MOD_OK) return result;
     return svc_ui->pane_add_text(mod_ctx, pane,
-        "Native RmlUi tracker. The current SDK window captures game input and cannot detach onto another monitor. Filters are remembered across restarts. Seed settings are stored per save slot.", nullptr);
+        "Native RmlUi tracker. The current SDK window captures game input and cannot detach onto another monitor. Filters and the normal-game option are remembered across restarts. Randomizer seed settings are stored per save slot.", nullptr);
 }
 ModResult updateSettings(ModContext*, void*, ModError*) {
     for (int device=0;device<2;++device) {
@@ -1347,6 +1407,8 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
         tracker::mapAccessibleOnly,tracker::minimapAccessibleOnly,tracker::showCheckInfoHint,tracker::showDungeonSummary,
         tracker::mapTypes,tracker::minimapTypes,statusFilters,showHintSigns,areaSort,search});
     if(preferenceResult!=MOD_OK) return mods::set_error(error,preferenceResult,"TPTracker filter preferences could not be restored");
+    const auto modeResult=preferences.bind("normal-game",normalGameMode,false);
+    if(modeResult!=MOD_OK) return mods::set_error(error,modeResult,"TPTracker game mode preference could not be restored");
     ResourceBuffer buffer = RESOURCE_BUFFER_INIT;
     if (svc_resource->load(mod_ctx, "catalogue.json", &buffer) != MOD_OK)
         return mods::set_error(error, MOD_ERROR, "TPTracker catalogue is missing");
@@ -1418,7 +1480,7 @@ MOD_EXPORT ModResult mod_update(ModError*) {
         backupCard();
         const char* dataPath = nullptr;
         std::string error;
-        if (svc_host->data_dir(mod_ctx, &dataPath) == MOD_OK && dataPath &&
+        if (!normalGameMode && svc_host->data_dir(mod_ctx, &dataPath) == MOD_OK && dataPath &&
             tracker::loadSelectedSeed(model, std::filesystem::u8path(dataPath).parent_path(), error)) {
             status = "Seed: " + model.seed + " (selected save)";
             dirty = true; ++revision;

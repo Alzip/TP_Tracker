@@ -1,5 +1,6 @@
 #include "model.hpp"
 #include "seed_data.hpp"
+#include "vanilla.hpp"
 #include <algorithm>
 #include <charconv>
 #include <sstream>
@@ -30,6 +31,13 @@ std::string escape(std::string_view s) {
     return out;
 }
 static std::string scalar(const Json& value) { return value.is_string() ? value.get<std::string>() : value.dump(); }
+static std::string checkRequirement(const std::string& name, const std::string& requirement, bool normalGame) {
+    if (normalGame && name == "Barnes Bomb Bag") {
+        const std::string native = "Human_Link and Vanilla_Barnes_Shop_Open";
+        return requirement == "Nothing" ? native : "(" + requirement + ") and " + native;
+    }
+    return requirement;
+}
 std::string Model::checkDetails(const std::string& name, bool advanced) const {
     const Json* selected = nullptr;
     for (const auto& check : catalogue.at("checks")) if (check.at("name") == name) { selected = &check; break; }
@@ -41,7 +49,8 @@ std::string Model::checkDetails(const std::string& name, bool advanced) const {
     out += "<div class='tp-note'>Reach the area, then meet the local requirement. Alternate routes are listed separately.</div>";
     std::string expressions;
     for (const auto& route : selected->at("access")) {
-        const std::string area = route.at("area"), requirement = route.at("requirement");
+        const std::string area = route.at("area");
+        const auto requirement = checkRequirement(name, route.at("requirement").get<std::string>(), normalGame);
         auto found = reached.find(area);
         Truth reach = Truth::no, result = Truth::no;
         if (found == reached.end()) reach = result = Truth::unknown;
@@ -49,7 +58,10 @@ std::string Model::checkDetails(const std::string& name, bool advanced) const {
         if(shuffled && !entrancesComplete && reach==Truth::no) reach=result=Truth::unknown;
         out += "<div class='tp-group'>" + escape(area) + " — " + label(result) + "</div><div>Area access: " + label(reach) + "</div><div>Local requirement: " + (requirement=="Nothing" ? std::string("No additional items required.") : escape(words(requirement))) + "</div>";
         expressions += " " + words(requirement);
-        if (reach != Truth::yes) out += "<div class='tp-note'>" + std::string(reach==Truth::no ? "You cannot currently reach this area with the tracked inventory and seed settings." : "The tracker cannot yet confirm access to this area.") + "</div>";
+        if (reach != Truth::yes) out += "<div class='tp-note'>" + std::string(reach==Truth::no ?
+            (normalGame ? "You cannot currently reach this area with the tracked inventory and native story progress." :
+                          "You cannot currently reach this area with the tracked inventory and seed settings.") :
+            "The tracker cannot yet confirm access to this area.") + "</div>";
     }
     if (selected->at("access").empty()) out += "<div>Requirements are not available for this check.</div>";
     // Expand named logic helpers without substituting away AND/OR grouping.
@@ -130,6 +142,33 @@ void Model::loadSeed(const std::string& text) {
     next.applySeedData(text);
     *this=std::move(next);
 }
+void Model::loadVanilla() {
+    // Explicit opt-in: missing/broken randomizer metadata must still stay UNKNOWN.
+    normalGame = true; seedLoaded = false; seed.clear();
+    shuffled = false; entrancesComplete = false; entrances = Json::object();
+    itemPlacements.clear(); startingItems.clear(); entranceTargets.clear();
+    entranceCandidates.clear(); shuffledEdges.clear(); visitedEntrances.clear();
+    accessible.clear(); events.clear(); reached.clear();
+    settings = Json::object();
+    for (const auto& [name, options] : catalogue.at("setting_options").items())
+        if (options.is_array() && !options.empty()) settings[name] = options.front();
+    for (const char* setting : {"Hyrule Barrier Requirements", "Palace of Twilight Requirements",
+                               "Small Keys", "Big Keys", "Maps and Compasses", "Ilia Memory Quest",
+                               "Poe Souls", "Logic Damage Multiplier"}) settings[setting] = "Vanilla";
+    settings["Logic Rules"] = "All Locations Reachable";
+    settings["Mirror Chamber Access"] = "Closed";
+    settings["Faron Woods Logic"] = "Closed";
+    settings["Goron Mines Entrance"] = "Closed";
+    settings["Temple of Time Sword Requirement"] = "Master Sword";
+    settings["Starting Form"] = "Human";
+    settings["Starting Time of Day"] = "Noon";
+    // These settings describe shuffling in the generator. They must not hide
+    // the real, unshuffled NPC/shop/skill/collectible locations from a guide.
+    for (const char* setting : {"Golden Bugs", "Sky Characters", "Gifts From NPCs", "Shop Items", "Hidden Skills"})
+        settings[setting] = "Off";
+    settings["Hidden Rupees"] = "Off";
+    settings["Freestanding Rupees"] = "Off";
+}
 void Model::loadNativeEntrances(const std::string& text) {
     Model next=*this; resolveNativeEntrances(next,text); *this=std::move(next);
 }
@@ -168,6 +207,7 @@ void Model::applySeedData(const std::string& text) {
     entrances = std::move(nextEntrances);
     itemPlacements.clear(); startingItems.clear();
     seedLoaded = true;
+    normalGame = false;
     shuffled = false;
     for (const auto& [key, value] : settings.items())
         if (key.starts_with("Randomize ") && (key.find("Entrances") != std::string::npos || key == "Randomize Starting Spawn") && scalar(value) != "Off")
@@ -205,18 +245,21 @@ std::string Model::itemHistory(const std::string& name) const {
         if(placement==itemPlacements.end() || placement->second!=name) continue;
         out+="<div>"+escape(check)+"</div>"; shown=true;
     }
-    if(!shown) out+="<div>Source not recorded. Load this save's spoiler log to match completed checks to rewards.</div>";
+    if(!shown) out+= normalGame ? "<div>Source not recorded. Normal-game tracking uses native save flags and does not require a spoiler log.</div>" : "<div>Source not recorded. Load this save's spoiler log to match completed checks to rewards.</div>";
     out+="<div class='tp-note'>Only completed checks are listed. Uncollected copies and upgrades stay hidden.</div>";
     return out;
 }
 void Model::resetSave() {
     skipped.clear(); mapHidden.clear(); itemPlacements.clear(); startingItems.clear(); entranceTargets.clear(); entranceCandidates.clear(); shuffledEdges.clear(); visitedEntrances.clear();
     inventory.clear(); countedItems.clear(); obtained.clear(); accessible.clear(); events.clear(); reached.clear();
-    seed.clear(); settings = Json::object(); entrances = Json::object(); seedLoaded = false; shuffled = false; entrancesComplete = false;
+    seed.clear(); settings = Json::object(); entrances = Json::object(); seedLoaded = false; normalGame = false; shuffled = false; entrancesComplete = false;
     stage.clear(); room = -1; layer = -1;
 }
 bool Model::give(const std::string& name) {
     auto found = aliases.find(name);
+    if (normalGame && found != aliases.end())
+        for (const auto& check : catalogue.at("checks"))
+            if (check.at("name") == found->second && !enabled(check)) return false;
     if (found!=aliases.end()) skipped.erase(found->second);
     return found != aliases.end() && obtained.insert(found->second).second;
 }
@@ -258,6 +301,20 @@ bool Model::inArea(const Json& check) const {
 }
 bool Model::enabled(const Json& check) const {
     auto has = [&](const char* cat) { const auto& cats = check.at("categories"); return std::find(cats.begin(), cats.end(), cat) != cats.end(); };
+    if (normalGame) {
+        // Hint signs are added by the randomizer; optional rupee tags/flags and
+        // positions are patched by it and cannot identify native pickups safely.
+        if (has("Hint Sign") || has("Rupee - Hidden") || has("Rupee - Freestanding")) return false;
+        if (has("Twilit Insect")) {
+            const auto item = check.value("original_item", std::string{});
+            for (const char* province : {"Faron", "Eldin", "Lanayru"}) {
+                const auto cleared = inventory.find(std::string("Vanilla ") + province + " Twilight Cleared");
+                if (item == std::string(province) + " Twilight Tear" && cleared != inventory.end() && cleared->second > 0)
+                    return false;
+            }
+        }
+        return true;
+    }
     auto off = [&](const char* key) { return settings.contains(key) && scalar(settings.at(key)) == "Off"; };
     if (has("Twilit Insect")) {
         const auto item = check.value("original_item", std::string{});
@@ -364,6 +421,21 @@ Truth Model::evaluate(std::string expression, int form, std::set<std::string> st
     }
     if (s.front() == '(' && s.back() == ')') return evaluate(s.substr(1, s.size() - 2), form, stack);
     s = words(s);
+    auto nativeState = [&](const std::string& name) {
+        const auto found = inventory.find(name);
+        return found == inventory.end() || found->second < 0 ? Truth::unknown : truth(found->second > 0);
+    };
+    if (normalGame) {
+        if (s == "Can Complete Prologue") return nativeState("Vanilla Prologue Complete");
+        if (s == "Can Complete MDH") return nativeState("Vanilla Midna Available");
+        if (s == "Can Use Warp Portals")
+            return evaluate("(Wolf_Link or Twilight) and Vanilla_Warp_Unlocked and Vanilla_Midna_Available and 'Can_Warp' and Can_Complete_Prologue", form, stack);
+        if (s == "Can Defeat Shadow Beast")
+            return evaluate("Sword or ((Wolf_Link or Twilight) and Vanilla_Midna_Available)", form, stack);
+        for (const char* province : {"Faron", "Eldin", "Lanayru"})
+            if (s == std::string("Can Complete ") + province + " Twilight")
+                return nativeState(std::string("Vanilla ") + province + " Twilight Cleared");
+    }
     if (s == "Nothing" || s == "True") return Truth::yes;
     if (s == "Impossible" || s == "False") return Truth::no;
     if (s == "Human Link") return truth(form < 2);
@@ -372,7 +444,12 @@ Truth Model::evaluate(std::string expression, int form, std::set<std::string> st
     if (s == "Night") return truth(form == 1 || form == 3);
     if (s == "Twilight") return truth(form == 4);
     if (s.front() == '\'' && s.back() == '\'') {
-        auto it = events.find(s.substr(1, s.size() - 2));
+        const auto name = s.substr(1, s.size() - 2);
+        if (normalGame) {
+            const auto story = vanillaStoryKey(name);
+            if (!story.empty()) return nativeState(story);
+        }
+        auto it = events.find(name);
         return it == events.end() ? Truth::unknown : it->second;
     }
     auto countOf = [&](const std::string& name) -> int {
@@ -424,6 +501,23 @@ Truth Model::evaluate(std::string expression, int form, std::set<std::string> st
         auto key = trim(s.substr(0, pos)), expected = trim(s.substr(pos + 2));
         if (!settings.contains(key)) return Truth::unknown;
         auto actual = scalar(settings.at(key));
+        if (normalGame) {
+            std::string story;
+            if (key == "Skip Prologue") story = "Vanilla Prologue Complete";
+            for (const char* province : {"Faron", "Eldin", "Lanayru"})
+                if (key == std::string(province) + " Twilight Cleared")
+                    story = std::string("Vanilla ") + province + " Twilight Cleared";
+            if (!story.empty()) {
+                const auto state = nativeState(story);
+                if (state == Truth::unknown) return state;
+                actual = state == Truth::yes ? "On" : "Off";
+            }
+            if (key == "Starting Form") {
+                const auto wolf = nativeState("Vanilla Current Wolf Form");
+                if (wolf == Truth::unknown) return wolf;
+                actual = wolf == Truth::yes ? "Wolf" : "Human";
+            }
+        }
         if (op == "==") return truth(actual == expected);
         if (op == "!=") return truth(actual != expected);
         if (catalogue.contains("setting_options") && catalogue.at("setting_options").contains(key)) {
@@ -446,7 +540,7 @@ Truth Model::evaluate(std::string expression, int form, std::set<std::string> st
 void Model::solve() {
     accessible.clear(); events.clear(); reached.clear();
     for (const auto& check : catalogue.at("checks")) accessible[check.at("name").get<std::string>()] = Truth::unknown;
-    if (!seedLoaded) return;
+    if (!seedLoaded && !normalGame) return;
     if (settings.value("Logic Rules", Json("")) == "No Logic") {
         for (auto& [name, value] : accessible) value = Truth::yes;
         return;
@@ -459,7 +553,8 @@ void Model::solve() {
         twilightCleared[name] = area.contains("Twilight") ? evaluate("Can Complete " + area.at("Twilight").get<std::string>() + " Twilight") : Truth::yes;
         events["Can Access " + name] = Truth::no;
         if (area.contains("Events") && area.at("Events").is_object())
-            for (const auto& [event, req] : area.at("Events").items()) events[event] = Truth::no;
+            for (const auto& [event, req] : area.at("Events").items())
+                events[event] = normalGame && !vanillaStoryKey(event).empty() ? evaluate("'" + event + "'") : Truth::no;
     }
     reached["Root"].fill(Truth::yes);
     reached["Root"][4] = Truth::no;
@@ -493,7 +588,8 @@ void Model::solve() {
                 if (reach == Truth::no) continue;
                 if (area.contains("Events") && area.at("Events").is_object())
                     for (const auto& [event, requirement] : area.at("Events").items())
-                        promote(events[event], both(reach, evaluate(scalar(requirement), f)));
+                        if (!normalGame || vanillaStoryKey(event).empty())
+                            promote(events[event], both(reach, evaluate(scalar(requirement), f)));
                 if (area.contains("Exits") && area.at("Exits").is_object())
                     for (const auto& [vanilla, requirement] : area.at("Exits").items()) {
                         const auto exit=entranceDestination(name,vanilla);
@@ -519,16 +615,17 @@ void Model::solve() {
     }
     for (const auto& check : catalogue.at("checks")) {
         auto result = Truth::no;
+        const std::string checkName=check.at("name");
         for (const auto& access : check.at("access")) {
             auto area = reached.find(access.at("area").get<std::string>());
             if (area == reached.end()) { result = either(result, Truth::unknown); continue; }
+            const auto requirement = checkRequirement(checkName, access.at("requirement").get<std::string>(), normalGame);
             for (int f = 0; f < 5; ++f)
-                result = either(result, both(area->second[f], evaluate(access.at("requirement").get<std::string>(), f)));
+                result = either(result, both(area->second[f], evaluate(requirement, f)));
         }
-        const std::string checkName=check.at("name");
         // Agitha's outstanding deliveries depend on the caught bug, not the
         // solver's assumed route to Castle Town. Delivery flags mark completion.
-        if (checkName.starts_with("Agitha ") && checkName.ends_with(" Reward")) {
+        if (!normalGame && checkName.starts_with("Agitha ") && checkName.ends_with(" Reward")) {
             const auto bug=checkName.substr(7,checkName.size()-14);
             auto owned=inventory.find(bug);
             result=obtained.contains(checkName) ? Truth::no : owned==inventory.end() || owned->second<0 ? Truth::unknown : truth(owned->second>0);
