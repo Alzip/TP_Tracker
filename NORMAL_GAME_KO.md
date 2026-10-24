@@ -110,15 +110,17 @@ Windows 빌드와 자동 테스트 결과는 Actions 실행 로그와 다운로�
 접근 조건 계산과 체크 기록에 쓰는 영어 식별자는 유지해야 합니다.
 공략 자료인 `res/check_guides.json`은 658개 항목, 1,080개 문단으로 구성되어 있습니다.
 
-먼저 **한글 글꼴 표시 경로를 확인해야 합니다.** Dusklight 2.0.3이 제공하는 UI 글꼴에는
-한글 글리프가 없고, 공개 모드 UI API에는 글꼴을 등록하거나 불러오는 함수가 없습니다.
-따라서 문자열만 번역하면 한글 표시가 보장되지는 않습니다. 한글 글꼴을 적용할 지원 경로를
-확인하고, `현재 지역`, `지역 접근`, 카카리코 공략 몇 개로 글자 표시·줄바꿈·검색·스크롤을
-먼저 시험하는 순서가 적절합니다. 게임 지도 위 글자는 별도 렌더러를 사용하므로 따로 확인해야 합니다.
+기본 UI 글꼴에는 한글 글리프가 없지만, **Dusklight 2.0.3의 스타일 기능으로 모드에
+한글 글꼴을 추가하는 경로를 확인했습니다.** 모드에 포함한 TTF를 모드 자신의 쓰기 가능한
+폴더에 풀고, 기존 UI 스타일 API의 `@font-face`로 불러오는 방식입니다.
+소스 검토상 Dusklight 본체 재빌드는 필요하지 않습니다. 실제 표시 성공은 별도 검증이 필요하므로,
+`현재 지역`, `지역 접근`, 카카리코 공략 몇 개로 글자 표시·줄바꿈·검색·스크롤을 먼저 시험합니다.
+게임 지도 위 글자는 별도 렌더러를 사용하므로 따로 확인해야 합니다.
 
 근거: Dusklight 2.0.3의
 [UI 글꼴 로딩 코드](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/src/dusk/ui/ui.cpp),
-[공개 UI API](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h).
+[공개 UI API](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h),
+해당 버전에 포함된 [RmlUi 글꼴 스타일 처리 코드](https://github.com/encounter/RmlUi/blob/f00a0fee38391b2f927114e11bea18dc0a7dba1e/Source/Core/StyleSheetParser.cpp).
 
 ## 선택 사항: Windows에서 직접 빌드
 

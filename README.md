@@ -61,11 +61,14 @@ Korean menus, check names and collection guides are feasible as a separate
 display layer; the English keys used by logic and saved tracker records must
 remain stable. The guide resource has 658 entries and 1,080 paragraphs. No
 Korean translation is included in this patch. Dusklight 2.0.3's bundled UI fonts
-lack Hangul glyphs, and its public mod UI service exposes no font-loading API.
-A supported Korean font path must be tested before translating the full guide;
-native in-game map labels use a separate renderer and need a separate check.
+lack Hangul glyphs. Its exact RmlUi fork supports RCSS `@font-face`, so a mod can
+extract a bundled Korean TTF into its own writable directory and load it through
+the existing style API. Source inspection does not indicate a host rebuild is
+needed. Actual Hangul rendering, wrapping and scrolling still need a small
+in-game probe; native map labels use a separate renderer and need a separate check.
 See the [font setup](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/src/dusk/ui/ui.cpp)
-and [public UI service](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h).
+and [public UI service](https://github.com/TwilitRealm/dusklight/blob/v2.0.3/sdk/include/mods/svc/ui.h),
+and the exact [RmlUi font-face parser](https://github.com/encounter/RmlUi/blob/f00a0fee38391b2f927114e11bea18dc0a7dba1e/Source/Core/StyleSheetParser.cpp).
 
 ## Upstream 0.4.44 notes
 
