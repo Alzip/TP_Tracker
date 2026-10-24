@@ -1,4 +1,10 @@
-# TPTracker 0.4.44+vanilla.2.ko2 (unofficial normal-game patch)
+# TPTracker 0.4.44+vanilla.2.ko3 (unofficial normal-game patch)
+
+**Download the completed ko3 Windows build:** [successful Actions run](https://github.com/Alzip/TP_Tracker/actions/runs/40115031953)
+→ **Artifacts → TPTracker-ko3-windows-x64**. Package SHA-256:
+`ef42dacda4a4165ac7c89c3e9ed321e4d1a9c0b6189956667db8902c92fbbcdf`.
+Compilation, automated tests, native metadata and official Dusklight 2.0.3 import compatibility were checked;
+live gameplay testing remains separate.
 
 This patch targets **Dusklight 2.0.3 on Windows x64** and adds an explicit
 **Normal game (no randomizer)** option in
@@ -35,7 +41,7 @@ in [Alzip/TP_Tracker](https://github.com/Alzip/TP_Tracker).
 3. After the run succeeds, open its summary and download the
    **TPTracker-normal-game-windows-x64** artifact under **Artifacts**.
 4. Extract the download and install
-   `TPTracker-0.4.44+vanilla.2.ko2-windows-amd64.dusk` in Dusklight 2.0.3.
+   `TPTracker-0.4.44+vanilla.2.ko3-windows-amd64.dusk` in Dusklight 2.0.3.
    Keep only one installed copy of TPTracker. Enable
    **F1 > Mods > TPTracker > Normal game (no randomizer)** after loading the save.
 
@@ -68,6 +74,14 @@ stage labels, logic helpers and discovered-entrance names. The source includes
 randomizer-only rupee/sign entries; normal mode continues to hide those checks.
 An original missing-description placeholder remains an explicit notice, and
 ambiguous original directions are identified rather than guessed.
+
+Version ko3 fills remaining reward names (47 missing original-item labels), shortcut names,
+file-picker labels, dynamic status/error text and On/Off values. The display dictionaries
+contain **286 UI strings and 2,384 names**; all 658 guides and 1,080 paragraphs are retained.
+Korean boolean controls use the public two-option dropdown within this mod, retaining the
+original boolean callbacks and saved values. Their interaction is select-then-confirm.
+The native map's Korean request no longer depends on window-font readiness. Dungeon maps
+also show the hovered check's name and status using the existing icon hit-test.
 
 The separate [Korean resource](res/ko.json) changes presentation only. Canonical
 catalogue keys, solver expressions, save records and selections remain English
