@@ -5,6 +5,8 @@
 #include "entrance_journal.hpp"
 #include "notebook.hpp"
 #include "check_guides.hpp"
+#include "localization.hpp"
+#include "korean_font.hpp"
 #include "seed.hpp"
 #include "map.hpp"
 #include "preferences.hpp"
@@ -49,6 +51,59 @@ using tracker::Truth;
 tracker::Model model;
 tracker::EntranceJourney entranceJourney;
 tracker::CheckGuides checkGuides;
+tracker::Localization localization;
+bool koreanEnabled = true, koreanRequestedAtLaunch = false, koreanFontAvailable = false;
+UiStyleHandle koreanStyle = 0;
+std::string koreanLoadError;
+
+// Translate only presentation text. Control values, user_data and catalogue
+// identifiers remain untouched, including saved notes and check selections.
+std::string uiText(std::string_view key) { return localization.stringLookup(key); }
+std::string uiName(std::string_view key) { return localization.nameLookup(key); }
+std::string uiFormat(std::string_view key,
+    std::initializer_list<std::pair<std::string_view,std::string>> values) {
+    auto text=uiText(key);
+    for(const auto& [name,value]:values) {
+        const auto token="{"+std::string(name)+"}";
+        size_t pos=0;
+        while((pos=text.find(token,pos))!=std::string::npos) {
+            text.replace(pos,token.size(),value); pos+=value.size();
+        }
+    }
+    return text;
+}
+ModResult addControl(UiElementHandle pane,const UiControlDesc* source,UiElementHandle* out) {
+    auto desc=*source;
+    const std::string originalLabel=source->label ? source->label : "";
+    auto label=uiText(originalLabel);
+    if(label==originalLabel) label=uiName(originalLabel);
+    const auto help=source->help_rml ? localization.rml(source->help_rml) : std::string{};
+    const auto tooltip=source->tooltip ? uiText(source->tooltip) : std::string{};
+    desc.label=label.c_str();
+    if(source->help_rml) desc.help_rml=help.c_str();
+    if(source->tooltip) desc.tooltip=tooltip.c_str();
+    std::vector<std::string> labels;
+    std::vector<const char*> options;
+    if(source->options && source->option_count) {
+        labels.reserve(source->option_count); options.reserve(source->option_count);
+        for(size_t i=0;i<source->option_count;++i) labels.push_back(uiText(source->options[i]));
+        for(const auto& option:labels) options.push_back(option.c_str());
+        desc.options=options.data();
+    }
+    return svc_ui->pane_add_control(mod_ctx,pane,&desc,out);
+}
+ModResult setControlLabel(UiElementHandle control,const char* label) {
+    const auto text=uiText(label ? label : "");
+    return svc_ui->control_set_label(mod_ctx,control,text.c_str());
+}
+ModResult setControlTooltip(UiElementHandle control,const char* tooltip) {
+    const auto text=uiText(tooltip ? tooltip : "");
+    return svc_ui->control_set_tooltip(mod_ctx,control,text.c_str());
+}
+ModResult addUiRml(UiElementHandle pane,const char* markup,UiElementHandle* out) {
+    const auto text=localization.rml(markup ? markup : "");
+    return svc_ui->pane_add_rml(mod_ctx,pane,text.c_str(),out);
+}
 UiWindowHandle window = 0;
 UiWindowHandle detailWindow = 0, itemWindow=0;
 std::string selectedItem;
@@ -136,6 +191,12 @@ bool logicRequested = false;
 std::future<tracker::LogicResult> logicJob;
 std::string search;
 std::string status = "Select this save's spoiler log in F1 > Mods > TPTracker.";
+std::string displayedStatus() {
+    auto text=uiText(status);
+    if(koreanRequestedAtLaunch && (!koreanFontAvailable || !localization.available()))
+        text+="\nKorean font or translation resource is unavailable; English is active.";
+    return text;
+}
 std::string lastChecks;
 std::set<std::string> journal;
 std::chrono::steady_clock::time_point nextScan{};
@@ -219,11 +280,11 @@ ModResult updateDetail(ModContext*,void*,ModError*) {
     detailRevision=revision;
     if(detailButton) {
         const bool skipped=model.skipped.contains(selectedCheck);
-        svc_ui->control_set_label(mod_ctx,detailButton,skipped ? "Skipped" : "Skip this check");
-        svc_ui->control_set_tooltip(mod_ctx,detailButton,skipped ? "Undo skipped check?" : "Hide this check from the maps until restored.");
+        setControlLabel(detailButton,skipped ? "Skipped" : "Skip this check");
+        setControlTooltip(detailButton,skipped ? "Undo skipped check?" : "Hide this check from the maps until restored.");
     }
-    if(detailToggle) svc_ui->control_set_label(mod_ctx,detailToggle,detailAdvanced ? "Hide full logic" : "Show full logic");
-    const auto markup=model.checkDetails(selectedCheck,detailAdvanced);
+    if(detailToggle) setControlLabel(detailToggle,detailAdvanced ? "Hide full logic" : "Show full logic");
+    const auto markup=localization.rml(model.checkDetails(selectedCheck,detailAdvanced));
     if(markup==detailMarkup) return MOD_OK;
     detailMarkup=markup;
     // Each generated div gets a small focus anchor. The SDK scrolls focused
@@ -244,10 +305,10 @@ ModResult updateDetail(ModContext*,void*,ModError*) {
             UiControlDesc control=UI_CONTROL_DESC_INIT;
             control.kind=UI_CONTROL_BUTTON; control.label="";
             control.on_pressed=[](ModContext*,void*) {};
-            result=svc_ui->pane_add_control(mod_ctx,block,&control,&anchor);
+            result=addControl(block,&control,&anchor);
             if(result!=MOD_OK) return result;
             svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
-            result=svc_ui->pane_add_rml(mod_ctx,block,"",&section);
+            result=addUiRml(block,"",&section);
             if(result!=MOD_OK) return result;
             detailAnchors.push_back(anchor); detailSections.push_back(section);
         }
@@ -269,16 +330,16 @@ ModResult buildDetail(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
     UiControlDesc advanced=UI_CONTROL_DESC_INIT;
     advanced.kind=UI_CONTROL_BUTTON; advanced.label="Show full logic";
     advanced.on_pressed=[](ModContext*,void*) { detailAdvanced=!detailAdvanced; ++revision; };
-    result=svc_ui->pane_add_control(mod_ctx,left,&advanced,&detailToggle);
+    result=addControl(left,&advanced,&detailToggle);
     if(result!=MOD_OK) return result;
     UiControlDesc button=UI_CONTROL_DESC_INIT;
     button.kind=UI_CONTROL_BUTTON; button.label="Skip this check";
     button.on_pressed=skipSelectedCheck; button.is_disabled=skipSelectedDisabled;
-    result=svc_ui->pane_add_control(mod_ctx,left,&button,&detailButton);
+    result=addControl(left,&button,&detailButton);
     if(result!=MOD_OK) return result;
     // Direct-pane rows let native controller focus scroll each guide paragraph
     // into view, just like the requirements on the left. Text is escaped RML.
-    for(const auto& markup : checkGuides.blocks(selectedCheck)) {
+    for(const auto& markup : checkGuides.blocks(selectedCheck,&localization,model.normalGame)) {
         UiElementHandle block=0,anchor=0;
         UiRowDesc row=UI_ROW_DESC_INIT;
         result=svc_ui->pane_add_row(mod_ctx,right,&row,&block);
@@ -287,10 +348,10 @@ ModResult buildDetail(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
         UiControlDesc control=UI_CONTROL_DESC_INIT;
         control.kind=UI_CONTROL_BUTTON; control.label="";
         control.on_pressed=[](ModContext*,void*) {};
-        result=svc_ui->pane_add_control(mod_ctx,block,&control,&anchor);
+        result=addControl(block,&control,&anchor);
         if(result!=MOD_OK) return result;
         svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
-        result=svc_ui->pane_add_rml(mod_ctx,block,markup.c_str(),nullptr);
+        result=addUiRml(block,markup.c_str(),nullptr);
         if(result!=MOD_OK) return result;
     }
     detailRevision=0;
@@ -300,7 +361,8 @@ void detailClosed(ModContext*,UiWindowHandle,void*) { mapDetail=mapDetailClosing
 bool openCheckDetails(const std::string& name) {
     if(detailWindow || !model.aliases.contains(name)) return false;
     selectedCheck=name;
-    UiTabDesc tab=UI_TAB_DESC_INIT; tab.title="Check details"; tab.build=buildDetail; tab.update=updateDetail;
+    const auto title=uiText("Check details");
+    UiTabDesc tab=UI_TAB_DESC_INIT; tab.title=title.c_str(); tab.build=buildDetail; tab.update=updateDetail;
     UiWindowDesc desc=UI_WINDOW_DESC_INIT; desc.tabs=&tab; desc.tab_count=1; desc.on_closed=detailClosed;
     desc.rcss=R"(
 window { max-width: 1060dp; max-height: 800dp; }
@@ -690,9 +752,9 @@ ModResult addReadableBlocks(UiElementHandle pane,const std::string& markup) {
         svc_ui->elem_set_class(mod_ctx,row,"tp-detail-sections",true);
         UiControlDesc control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_BUTTON; control.label="";
         control.on_pressed=[](ModContext*,void*) {};
-        result=svc_ui->pane_add_control(mod_ctx,row,&control,&anchor); if(result!=MOD_OK) return result;
+        result=addControl(row,&control,&anchor); if(result!=MOD_OK) return result;
         svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
-        result=svc_ui->pane_add_rml(mod_ctx,row,markup.substr(start,end-start).c_str(),nullptr); if(result!=MOD_OK) return result;
+        result=addUiRml(row,markup.substr(start,end-start).c_str(),nullptr); if(result!=MOD_OK) return result;
         start=end;
     }
     return MOD_OK;
@@ -700,27 +762,28 @@ ModResult addReadableBlocks(UiElementHandle pane,const std::string& markup) {
 ModResult buildItemHistory(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHandle right,void*,ModError*) {
     auto result=addReadableBlocks(right,model.itemHistory(selectedItem));
     if(result!=MOD_OK) return result;
-    return svc_ui->pane_add_rml(mod_ctx,left,"<div class='tp-title'>Item history</div><div class='tp-note'>Locations are revealed only for rewards you have collected. Future upgrades stay hidden. B or Escape returns to the tracker.</div>",nullptr);
+    return addUiRml(left,"<div class='tp-title'>Item history</div><div class='tp-note'>Locations are revealed only for rewards you have collected. Future upgrades stay hidden. B or Escape returns to the tracker.</div>",nullptr);
 }
 void inspectItem(ModContext*,void* data) {
     const auto index=reinterpret_cast<uintptr_t>(data);
     if(itemWindow || index>=inventoryNames.size()) return;
     selectedItem=inventoryNames[index];
-    UiTabDesc tab=UI_TAB_DESC_INIT; tab.title="Item history"; tab.build=buildItemHistory;
+    const auto title=uiText("Item history");
+    UiTabDesc tab=UI_TAB_DESC_INIT; tab.title=title.c_str(); tab.build=buildItemHistory;
     UiWindowDesc desc=UI_WINDOW_DESC_INIT; desc.tabs=&tab; desc.tab_count=1; desc.rcss=styles;
     desc.on_closed=[](ModContext*,UiWindowHandle,void*) { itemWindow=0; selectedItem.clear(); };
     if(svc_ui->window_push(mod_ctx,&desc,&itemWindow)!=MOD_OK) itemWindow=0;
 }
 ModResult renderInventory() {
-    std::string header="<div class='tp-title'>TPTracker</div><div class='tp-note'>"+tracker::escape(status)+"</div>";
+    std::string header="<div class='tp-title'>TPTracker</div><div class='tp-note'>"+tracker::escape(displayedStatus())+"</div>";
     header+="<div class='tp-note'>Select an item to see its collected sources.</div>";
     if(inventorySections.empty()) {
         inventoryNames.clear();
-        auto result=svc_ui->pane_add_rml(mod_ctx,inventoryElement,header.c_str(),&inventoryHeader);
+        auto result=addUiRml(inventoryElement,header.c_str(),&inventoryHeader);
         if(result!=MOD_OK) return result;
         for(const char* section:{"Progression","Collectibles","Keys","Quest items"}) {
             auto title="<div class='tp-group'>"+std::string(section)+"</div>";
-            result=svc_ui->pane_add_rml(mod_ctx,inventoryElement,title.c_str(),nullptr); if(result!=MOD_OK) return result;
+            result=addUiRml(inventoryElement,title.c_str(),nullptr); if(result!=MOD_OK) return result;
             int column=0; UiElementHandle row=0;
             for(const auto& item:model.catalogue.at("items")) {
                 const auto name=item.at("Name").get<std::string>();
@@ -734,26 +797,26 @@ ModResult renderInventory() {
                 UiElementHandle tile=0,text=0,button=0;
                 result=svc_ui->pane_add_row(mod_ctx,row,&desc,&tile); if(result!=MOD_OK) return result;
                 svc_ui->elem_set_class(mod_ctx,tile,"tp-item",true);
-                result=svc_ui->pane_add_rml(mod_ctx,tile,"",&text); if(result!=MOD_OK) return result;
+                result=addUiRml(tile,"",&text); if(result!=MOD_OK) return result;
                 svc_ui->elem_set_class(mod_ctx,text,"tp-item-art",true);
                 UiControlDesc action=UI_CONTROL_DESC_INIT; action.kind=UI_CONTROL_BUTTON; action.label=name.c_str();
                 action.on_pressed=inspectItem; action.user_data=reinterpret_cast<void*>(inventoryNames.size());
-                result=svc_ui->pane_add_control(mod_ctx,tile,&action,&button); if(result!=MOD_OK) return result;
+                result=addControl(tile,&action,&button); if(result!=MOD_OK) return result;
                 svc_ui->elem_set_class(mod_ctx,button,"tp-item-action",true);
-                svc_ui->control_set_tooltip(mod_ctx,button,"View collected sources");
+                setControlTooltip(button,"View collected sources");
                 inventoryNames.push_back(name); inventorySections.push_back(text); inventoryBlocks.push_back(tile);
                 column=(column+1)%2;
             }
         }
-        result=svc_ui->pane_add_rml(mod_ctx,inventoryElement,"<div class='tp-note'>Current / maximum. Progressive items show upgrade tiers; small keys include keys already used. ? = count unavailable. Artwork: Henriko Magnifico, game and randomizer item icons.</div>",nullptr);
+        result=addUiRml(inventoryElement,"<div class='tp-note'>Current / maximum. Progressive items show upgrade tiers; small keys include keys already used. ? = count unavailable. Artwork: Henriko Magnifico, game and randomizer item icons.</div>",nullptr);
         if(result!=MOD_OK) return result;
     }
-    svc_ui->elem_set_rml(mod_ctx,inventoryHeader,header.c_str());
+    svc_ui->elem_set_rml(mod_ctx,inventoryHeader,localization.rml(header).c_str());
     for(size_t i=0;i<inventoryNames.size();++i) {
         const auto& name=inventoryNames[i]; auto found=model.inventory.find(name);
         const int count=found==model.inventory.end() ? -1 : found->second;
         std::string rml="<img src='mod://com.mikey022.tp_randomizer_tracker/res/"+tracker::escape(inventoryArt.at(name).at("icon").get<std::string>())+"'/>";
-        rml+=tracker::escape(name)+"<span class='tp-item-count'>"+(count<0?std::string("?"):std::to_string(count))+" / "+std::to_string(model.inventoryMaximum(name))+"</span>";
+        rml+=tracker::escape(uiName(name))+"<span class='tp-item-count'>"+(count<0?std::string("?"):std::to_string(count))+" / "+std::to_string(model.inventoryMaximum(name))+"</span>";
         svc_ui->elem_set_class(mod_ctx,inventoryBlocks[i],"owned",count>0);
         svc_ui->elem_set_class(mod_ctx,inventoryBlocks[i],"missing",count<=0);
         auto result=svc_ui->elem_set_rml(mod_ctx,inventorySections[i],rml.c_str()); if(result!=MOD_OK) return result;
@@ -774,8 +837,6 @@ std::string checksRml() {
     size_t shown = 0, done = 0, enabled = 0;
     struct Row { std::string name, group, css, label; };
     std::vector<Row> rows;
-    std::string needle = search;
-    std::transform(needle.begin(), needle.end(), needle.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
     for (const auto& check : model.catalogue.at("checks")) {
         if (!model.enabled(check)) continue;
         ++enabled;
@@ -784,9 +845,7 @@ std::string checksRml() {
         if (complete) ++done;
         if ((!allChecks && !model.inArea(check)) || (hideCompleted && complete)) continue;
         if (!tracker::passesHintSignFilter(check,showHintSigns[allChecks])) continue;
-        auto lower = name;
-        std::transform(lower.begin(), lower.end(), lower.begin(), [](unsigned char c) { return static_cast<char>(std::tolower(c)); });
-        if (!needle.empty() && lower.find(needle) == std::string::npos) continue;
+        if (!localization.match(name,search)) continue;
         auto state = model.accessible.contains(name) ? model.accessible.at(name) : Truth::unknown;
         bool skipped=!complete && model.skipped.contains(name);
         int filterState = complete ? 3 : skipped ? 5 : state == Truth::yes ? 1 : state == Truth::no ? 2 : 4;
@@ -817,23 +876,27 @@ std::string checksRml() {
         if (!visible) continue;
         const auto& row = rows[index];
         visibleNames.push_back(row.name);
-        if (heading) svc_ui->elem_set_text(mod_ctx,headingRows[i],row.group.c_str());
+        if (heading) svc_ui->elem_set_text(mod_ctx,headingRows[i],uiName(row.group).c_str());
         previousGroup = row.group;
-        std::string label = "[" + row.label + "] " + row.name;
-        svc_ui->control_set_label(mod_ctx,checkRows[i],label.c_str());
+        std::string label = "[" + uiText(row.label) + "] " + uiName(row.name);
+        setControlLabel(checkRows[i],label.c_str());
         for (const char* cls : {"done","open","locked","unknown","skipped"})
             svc_ui->elem_set_class(mod_ctx,checkRows[i],cls,row.css==cls);
     }
-    const auto count = "Page " + std::to_string(checkPage+1) + " of " + std::to_string(pages) + " / " + std::to_string(shown) + " matching checks / " + std::to_string(done) + " of " + std::to_string(enabled) + " completed across all areas";
+    const auto count = uiFormat("Page {page} of {pages} / {shown} matching checks / {done} of {enabled} completed across all areas",
+        {{"page",std::to_string(checkPage+1)},{"pages",std::to_string(pages)},{"shown",std::to_string(shown)},
+         {"done",std::to_string(done)},{"enabled",std::to_string(enabled)}});
     if (countElement) svc_ui->elem_set_text(mod_ctx,countElement,count.c_str());
-    if (pageControl) svc_ui->control_set_label(mod_ctx,pageControl,("Page (left / right) / " + std::to_string(pages) + " total").c_str());
+    if (pageControl) setControlLabel(pageControl,uiFormat("Page (left / right) / {pages} total",{{"pages",std::to_string(pages)}}).c_str());
     if (restorePageFocus) {
         restorePageFocus=false;
         stickRow=std::clamp(stickRow,0,std::max(0,static_cast<int>(visibleRows)-1));
         svc_ui->elem_focus(mod_ctx,visibleRows ? checkRows[stickRow] : pageControl);
     }
-    if (shown == 0) rml += "<div class='tp-note'>No matching checks for " + tracker::escape(allChecks ? "All Checks" : model.stage) + ". Check the status filter, Show hint signs toggle, Filter checks text and Hide completed checks setting.</div>";
-    return rml;
+    if (shown == 0) rml += "<div class='tp-note'>"+tracker::escape(uiFormat(
+        "No matching checks for {area}. Check the status filter, Show hint signs toggle, Filter checks text and Hide completed checks setting.",
+        {{"area",allChecks ? uiText("All Checks") : uiName(model.catalogue.at("stage_labels").value(model.stage,model.stage))}}))+"</div>";
+    return localization.rml(rml);
 }
 void navigateStick() {
     if (!window || !pageControl) return;
@@ -905,35 +968,35 @@ ModResult buildTab(ModContext*, UiWindowHandle, UiElementHandle left, UiElementH
     UiControlDesc filter = UI_CONTROL_DESC_INIT;
     filter.kind = UI_CONTROL_DROPDOWN; filter.label = "Check status";
     filter.options = options; filter.option_count = 6; filter.get = statusGet; filter.set = statusSet;
-    result = svc_ui->pane_add_control(mod_ctx, right, &filter, nullptr);
+    result = addControl( right, &filter, nullptr);
     if (result != MOD_OK) return result;
     {
         static const char* sorts[]={"A-Z", "Accessibility"};
         UiControlDesc sort=UI_CONTROL_DESC_INIT;
         sort.kind=UI_CONTROL_DROPDOWN; sort.label="Sort By";
         sort.options=sorts; sort.option_count=2; sort.get=sortGet; sort.set=sortSet;
-        result=svc_ui->pane_add_control(mod_ctx,right,&sort,nullptr);
+        result=addControl(right,&sort,nullptr);
         if (result!=MOD_OK) return result;
     }
     UiControlDesc hints=UI_CONTROL_DESC_INIT;
     hints.kind=UI_CONTROL_TOGGLE; hints.label="Show hint signs";
     hints.help_rml="Include hint signs in this tab's check list. Read hints remain in Notes.";
     hints.get=hintSignsGet; hints.set=hintSignsSet; hints.user_data=&showHintSigns[allChecks];
-    result=svc_ui->pane_add_control(mod_ctx,right,&hints,nullptr);
+    result=addControl(right,&hints,nullptr);
     if(result!=MOD_OK) return result;
-    result = svc_ui->pane_add_rml(mod_ctx, right, "", &checksElement);
+    result = addUiRml( right, "", &checksElement);
     if (result != MOD_OK) return result;
     result=svc_ui->pane_add_text(mod_ctx,right,"",&countElement);
     if (result!=MOD_OK) return result;
     UiControlDesc pager=UI_CONTROL_DESC_INIT;
     pager.kind=UI_CONTROL_NUMBER; pager.label="Page (left / right)"; pager.min=1; pager.max=1000; pager.step=1; pager.get=pageGet; pager.set=pageSet;
-    result=svc_ui->pane_add_control(mod_ctx,right,&pager,&pageControl);
+    result=addControl(right,&pager,&pageControl);
     if (result!=MOD_OK) return result;
     for (const auto& option : {std::pair{"Previous page",&previousPage},std::pair{"Next page",&nextPage}}) {
         UiControlDesc page = UI_CONTROL_DESC_INIT;
         page.kind = UI_CONTROL_BUTTON; page.label = option.first; page.on_pressed = option.second;
         page.is_disabled=option.second==previousPage ? previousDisabled : nextDisabled;
-        result = svc_ui->pane_add_control(mod_ctx,right,&page,nullptr);
+        result = addControl(right,&page,nullptr);
         if (result != MOD_OK) return result;
     }
     for (size_t i=0;i<pageSize;++i) {
@@ -946,7 +1009,7 @@ ModResult buildTab(ModContext*, UiWindowHandle, UiElementHandle left, UiElementH
         // A check is informational, not an editable page-number field.
         row.kind = UI_CONTROL_BUTTON; row.label = "Check"; row.on_pressed=inspectCheck;
         row.is_disabled=rowDisabled; row.user_data=reinterpret_cast<void*>(i);
-        result = svc_ui->pane_add_control(mod_ctx,right,&row,&rowHandle);
+        result = addControl(right,&row,&rowHandle);
         if (result != MOD_OK) return result;
         svc_ui->elem_set_class(mod_ctx,rowHandle,"tp-check",true);
         checkRows.push_back(rowHandle);
@@ -954,10 +1017,10 @@ ModResult buildTab(ModContext*, UiWindowHandle, UiElementHandle left, UiElementH
     return updateTab(mod_ctx,nullptr,nullptr);
 }
 std::string notesRml() {
-    std::string result="<div class='tp-title'>Read hints</div><div class='tp-note'>Hints appear here as you read each sign. Notes and skipped checks are stored with this save; save your game to keep them.</div>";
-    if (hintNotes.empty()) result+="<div class='tp-note'>No hint signs read yet.</div>";
+    std::string result=localization.rml("<div class='tp-title'>Read hints</div><div class='tp-note'>Hints appear here as you read each sign. Notes and skipped checks are stored with this save; save your game to keep them.</div>");
+    if (hintNotes.empty()) result+=localization.rml("<div class='tp-note'>No hint signs read yet.</div>");
     for (const auto& [name,pages] : hintNotes.items()) {
-        result+="<div class='tp-group'>"+tracker::escape(name)+"</div>";
+        result+="<div class='tp-group'>"+tracker::escape(uiName(name))+"</div>";
         for (int page=0;page<16;++page) {
             auto key=std::to_string(page);
             if (pages.contains(key) && pages[key].is_string()) {
@@ -1019,10 +1082,10 @@ ModResult updateNotes(ModContext*,void*,ModError*) {
             UiControlDesc control=UI_CONTROL_DESC_INIT;
             control.kind=UI_CONTROL_BUTTON; control.label="";
             control.on_pressed=[](ModContext*,void*) {};
-            result=svc_ui->pane_add_control(mod_ctx,block,&control,&anchor);
+            result=addControl(block,&control,&anchor);
             if(result!=MOD_OK) return result;
             svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
-            result=svc_ui->pane_add_rml(mod_ctx,block,"",&section);
+            result=addUiRml(block,"",&section);
             if(result!=MOD_OK) return result;
             hintAnchors.push_back(anchor); hintSections.push_back(section);
         }
@@ -1049,13 +1112,13 @@ ModResult buildNotes(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHa
     stickRow=-1; stickNavigation={}; renderedRevision=0;
     inventoryElement=left; inventorySections.clear(); inventoryBlocks.clear();
     ModResult result=MOD_OK;
-    result=svc_ui->pane_add_rml(mod_ctx,right,"<div class='tp-title'>My notes</div><div class='tp-note'>Left stick or D-pad: up/down scrolls notes and hints; left/right moves between panels. Right stick also scrolls notes. Type a reminder and press Enter to post it below. Select New note to write another. Each card has its own Delete button. Up to 64 notes, 1,000 characters each (16,000 total).</div>",nullptr);
+    result=addUiRml(right,"<div class='tp-title'>My notes</div><div class='tp-note'>Left stick or D-pad: up/down scrolls notes and hints; left/right moves between panels. Right stick also scrolls notes. Type a reminder and press Enter to post it below. Select New note to write another. Each card has its own Delete button. Up to 64 notes, 1,000 characters each (16,000 total).</div>",nullptr);
     if (result!=MOD_OK) return result;
     UiControlDesc control=UI_CONTROL_DESC_INIT;
     control.kind=UI_CONTROL_STRING; control.label="New note - Enter to add";
     control.max_length=1000; control.get=manualGet; control.set=manualSet;
     control.string_set_mode=UI_STRING_SET_ON_COMMIT;
-    result=svc_ui->pane_add_control(mod_ctx,right,&control,&newNoteControl);
+    result=addControl(right,&control,&newNoteControl);
     if (result!=MOD_OK) return result;
     for (size_t i=0;i<64;++i) {
         UiElementHandle card=0,button=0;
@@ -1065,7 +1128,7 @@ ModResult buildNotes(ModContext*,UiWindowHandle,UiElementHandle left,UiElementHa
         personalCards.push_back(card);
         control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_BUTTON;
         control.label="Delete note"; control.on_pressed=deleteNote; control.is_disabled=deleteNoteDisabled; control.user_data=reinterpret_cast<void*>(i);
-        result=svc_ui->pane_add_control(mod_ctx,right,&control,&button);
+        result=addControl(right,&control,&button);
         if (result!=MOD_OK) return result;
         personalDeletes.push_back(button);
     }
@@ -1138,27 +1201,27 @@ ModResult buildEntrances(ModContext*,UiWindowHandle,UiElementHandle left,UiEleme
     inventoryElement=left; inventorySections.clear(); inventoryBlocks.clear();
     entranceRows.clear(); entranceRowText.clear(); entranceAnchors.clear(); entrancePage=0; renderedRevision=0;
     entranceVisibleRows=0; entranceScrollRow=0; entranceNavigation={};
-    auto result=svc_ui->pane_add_rml(mod_ctx,right,"",&entranceHeading); if(result!=MOD_OK) return result;
+    auto result=addUiRml(right,"",&entranceHeading); if(result!=MOD_OK) return result;
     UiControlDesc searchControl=UI_CONTROL_DESC_INIT;
     searchControl.kind=UI_CONTROL_STRING; searchControl.label="Search entrances"; searchControl.max_length=128;
     searchControl.get=entranceSearchGet; searchControl.set=entranceSearchSet;
     searchControl.string_set_mode=UI_STRING_SET_ON_COMMIT;
-    result=svc_ui->pane_add_control(mod_ctx,right,&searchControl,&entranceSearchControl); if(result!=MOD_OK) return result;
+    result=addControl(right,&searchControl,&entranceSearchControl); if(result!=MOD_OK) return result;
     for(int i=0;i<2;++i) {
         UiControlDesc page=UI_CONTROL_DESC_INIT; page.kind=UI_CONTROL_BUTTON; page.label=i?"Next page":"Previous page";
         page.user_data=reinterpret_cast<void*>(static_cast<uintptr_t>(i));
         page.is_disabled=i?entranceNextDisabled:entrancePreviousDisabled;
         page.on_pressed=[](ModContext*,void* data) { if(data) { if(entrancePage+1<entrancePageCount) ++entrancePage; } else if(entrancePage) --entrancePage; entranceScrollRow=0; ++revision; };
-        result=svc_ui->pane_add_control(mod_ctx,right,&page,i?&entranceNext:&entrancePrevious); if(result!=MOD_OK) return result;
+        result=addControl(right,&page,i?&entranceNext:&entrancePrevious); if(result!=MOD_OK) return result;
     }
     for(size_t i=0;i<pageSize;++i) {
         UiElementHandle row=0,anchor=0,text=0; UiRowDesc desc=UI_ROW_DESC_INIT;
         result=svc_ui->pane_add_row(mod_ctx,right,&desc,&row); if(result!=MOD_OK) return result;
         svc_ui->elem_set_class(mod_ctx,row,"tp-detail-sections",true);
         UiControlDesc control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_BUTTON; control.label=""; control.on_pressed=[](ModContext*,void*) {};
-        result=svc_ui->pane_add_control(mod_ctx,row,&control,&anchor); if(result!=MOD_OK) return result;
+        result=addControl(row,&control,&anchor); if(result!=MOD_OK) return result;
         svc_ui->elem_set_class(mod_ctx,anchor,"tp-scroll-anchor",true);
-        result=svc_ui->pane_add_rml(mod_ctx,row,"",&text); if(result!=MOD_OK) return result;
+        result=addUiRml(row,"",&text); if(result!=MOD_OK) return result;
         entranceRows.push_back(row); entranceRowText.push_back(text); entranceAnchors.push_back(anchor);
     }
     return updateEntrances(nullptr,nullptr,nullptr);
@@ -1169,14 +1232,15 @@ void toggleSet(ModContext*, void*, const UiControlValue* value) {
     if (!value->bool_value && window) { if(itemWindow) svc_ui->window_close(mod_ctx,itemWindow); if(detailWindow) svc_ui->window_close(mod_ctx,detailWindow); svc_ui->window_close(mod_ctx, window); return; }
     if (!value->bool_value || window) return;
     UiTabDesc tabs[4] = {UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT, UI_TAB_DESC_INIT};
-    tabs[0].title = "Current Area";
-    tabs[1].title = "All Checks";
+    const std::string titles[]={uiText("Current Area"),uiText("All Checks"),uiText("Notes"),uiText("Entrances")};
+    tabs[0].title = titles[0].c_str();
+    tabs[1].title = titles[1].c_str();
     static int allTab;
     for (auto& tab : tabs) { tab.build = buildTab; tab.update = updateTab; }
     tabs[1].user_data = &allTab;
-    tabs[2].title="Notes"; tabs[2].build=buildNotes; tabs[2].update=updateNotes;
+    tabs[2].title=titles[2].c_str(); tabs[2].build=buildNotes; tabs[2].update=updateNotes;
     UiWindowDesc desc = UI_WINDOW_DESC_INIT;
-    tabs[3].title="Entrances"; tabs[3].build=buildEntrances; tabs[3].update=updateEntrances;
+    tabs[3].title=titles[3].c_str(); tabs[3].build=buildEntrances; tabs[3].update=updateEntrances;
     desc.tabs = tabs; desc.tab_count = model.shuffled ? 4 : 3; desc.rcss = styles; desc.on_closed = onClosed;
     auto result = svc_ui->window_push(mod_ctx, &desc, &window);
     if (result != MOD_OK) { window = 0; status = "Could not open tracker window."; mods::log::error("TPTracker: window_push failed"); }
@@ -1197,11 +1261,16 @@ void dismissBinding(ModContext*, UiDialogHandle, void*) {
 }
 void assignBinding(ModContext*,void* data) {
     capturingDevice=static_cast<int>(reinterpret_cast<uintptr_t>(data)); captureReady=false;
+    const auto cancelLabel=uiText("Cancel");
+    const auto title=uiText("Assign TPTracker shortcut");
+    const auto body=tracker::escape(uiText(capturingDevice ?
+        "Release the current button, then press any controller button or trigger." :
+        "Release the current key, then press any keyboard key. Escape cancels."));
     UiDialogAction action=UI_DIALOG_ACTION_INIT;
-    action.label="Cancel"; action.on_pressed=cancelBinding;
+    action.label=cancelLabel.c_str(); action.on_pressed=cancelBinding;
     UiDialogDesc dialog=UI_DIALOG_DESC_INIT;
-    dialog.title="Assign TPTracker shortcut";
-    dialog.body_rml=capturingDevice ? "Release the current button, then press any controller button or trigger." : "Release the current key, then press any keyboard key. Escape cancels.";
+    dialog.title=title.c_str();
+    dialog.body_rml=body.c_str();
     dialog.actions=&action; dialog.action_count=1; dialog.on_dismiss=dismissBinding;
     if (svc_ui->dialog_push(mod_ctx,&dialog,&bindingDialog)!=MOD_OK) cancelBinding(mod_ctx,0,nullptr);
 }
@@ -1285,6 +1354,18 @@ void typeGet(ModContext*,void* ptr,UiControlValue* v) { v->bool_value=*static_ca
 void typeSet(ModContext*,void* ptr,const UiControlValue* v) { savePreference(*static_cast<bool*>(ptr),v->bool_value); }
 bool seedPickerDisabled(ModContext*,void*) { return normalGameMode; }
 void normalGameGet(ModContext*,void*,UiControlValue* value) { value->bool_value=normalGameMode; }
+void koreanGet(ModContext*,void*,UiControlValue* value) { value->bool_value=koreanEnabled; }
+void koreanSet(ModContext*,void*,const UiControlValue* value) {
+    if(value->bool_value==koreanEnabled) return;
+    if(preferences.set(koreanEnabled,value->bool_value)!=MOD_OK) {
+        status="Could not save the language preference.";
+    } else {
+        // Host settings and open tab labels are copied when built. Apply the
+        // language together on the next launch, without disturbing a live save.
+        status="Language preference saved. Restart Dusklight to apply it.";
+    }
+    ++revision;
+}
 void normalGameSet(ModContext*,void*,const UiControlValue* value) {
     if (value->bool_value==normalGameMode) return;
     const auto result=preferences.set(normalGameMode,value->bool_value);
@@ -1305,86 +1386,93 @@ ModResult buildSettings(ModContext*, UiElementHandle pane, void*, ModError*) {
     settingsStatus = 0;
     UiControlDesc control = UI_CONTROL_DESC_INIT;
     control.kind = UI_CONTROL_TOGGLE; control.label = "TPTracker"; control.get = toggleGet; control.set = toggleSet;
-    auto result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
+    auto result = addControl( pane, &control, nullptr);
     if (result != MOD_OK) return result;
+    control=UI_CONTROL_DESC_INIT;
+    control.kind=UI_CONTROL_TOGGLE; control.label="Korean (partial; restart to apply)";
+    control.help_rml="Translate tracker menus and Kakariko/Death Mountain guides. Restart Dusklight after changing this option. Untranslated text stays in English.";
+    control.get=koreanGet; control.set=koreanSet;
+    result=addControl(pane,&control,nullptr);
+    if(result!=MOD_OK) return result;
     for (int device=0;device<2;++device) {
         control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_BUTTON;
         control.label=device ? "Click any button on controller to assign" : "Click any key on keyboard to assign";
         control.on_pressed=assignBinding; control.user_data=reinterpret_cast<void*>(static_cast<uintptr_t>(device));
-        result=svc_ui->pane_add_control(mod_ctx,pane,&control,&bindingButtons[device]);
+        result=addControl(pane,&control,&bindingButtons[device]);
         if (result!=MOD_OK) return result;
         control.label=device ? "Clear controller binding" : "Clear keyboard binding";
         control.on_pressed=clearBinding;
-        result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+        result=addControl(pane,&control,nullptr);
         if (result!=MOD_OK) return result;
     }
     control = UI_CONTROL_DESC_INIT;
     control.kind = UI_CONTROL_TOGGLE; control.label = "Normal game (no randomizer)";
     control.help_rml="Use the original game's inventory and story progress for access. Enable this for a normal playthrough; leave it off for randomizer saves. This preference is remembered across restarts.";
     control.get=normalGameGet; control.set=normalGameSet;
-    result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
+    result = addControl( pane, &control, nullptr);
     if (result != MOD_OK) return result;
     control = UI_CONTROL_DESC_INIT;
     control.kind = UI_CONTROL_BUTTON; control.label = "Load this save's seed log / JSON"; control.on_pressed = pickSeed;
     control.is_disabled=seedPickerDisabled;
-    result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
+    result = addControl( pane, &control, nullptr);
     if (result != MOD_OK) return result;
     control = UI_CONTROL_DESC_INIT;
     control.kind = UI_CONTROL_STRING; control.label = "Filter checks"; control.get = searchGet; control.set = searchSet; control.max_length = 128;
-    result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
+    result = addControl( pane, &control, nullptr);
     if (result != MOD_OK) return result;
     control = UI_CONTROL_DESC_INIT;
     control.kind = UI_CONTROL_TOGGLE; control.label = "Hide completed checks"; control.get = hideGet; control.set = hideSet;
-    result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
+    result = addControl( pane, &control, nullptr);
     if (result != MOD_OK) return result;
     control = UI_CONTROL_DESC_INIT;
     control.kind = UI_CONTROL_TOGGLE; control.label = tracker::mapAvailable ? "Native map check markers" : "Map markers unavailable on this build"; control.get = mapGet; control.set = mapSet;
-    result = svc_ui->pane_add_control(mod_ctx, pane, &control, nullptr);
+    result = addControl( pane, &control, nullptr);
     if (result != MOD_OK) return result;
     control = UI_CONTROL_DESC_INIT;
     control.kind=UI_CONTROL_TOGGLE; control.label=tracker::minimapAvailable ? "Minimap check dots" : "Minimap hook unavailable on this build"; control.get=miniGet; control.set=miniSet;
-    result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+    result=addControl(pane,&control,nullptr);
     if (result!=MOD_OK) return result;
     for (int surface=0;surface<2;++surface) {
         control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_TOGGLE;
         control.label=surface ? "Minimap: Show Accessible Only" : "Map: Show Accessible Only";
         control.get=typeGet; control.set=typeSet;
         control.user_data=surface ? &tracker::minimapAccessibleOnly : &tracker::mapAccessibleOnly;
-        result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+        result=addControl(pane,&control,nullptr);
         if(result!=MOD_OK) return result;
     }
     control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_TOGGLE;
     control.label="Map: Show Check Info hint (visual only)";
     control.help_rml="Show only the control hint. Map check information still opens with left click or RT/R2 + A/Cross when this is off.";
     control.get=typeGet; control.set=typeSet; control.user_data=&tracker::showCheckInfoHint;
-    result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+    result=addControl(pane,&control,nullptr);
     if(result!=MOD_OK) return result;
     control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_TOGGLE;
     control.label="Dungeon map: Show check counts";
     control.help_rml="Show accessible and remaining checks across all floors, using the selected game mode's enabled checks. Completed and skipped checks are excluded. Marker category filters do not change these totals.";
     control.get=typeGet; control.set=typeSet; control.user_data=&tracker::showDungeonSummary;
-    result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+    result=addControl(pane,&control,nullptr);
     if(result!=MOD_OK) return result;
     static const char* types[]={"Treasure chests","NPC / event rewards","Golden bugs","Poe souls","Golden wolves","Shop items","Owl statues","Grotto checks","Freestanding Rupees","Hidden Rupees"};
     for (int surface=0;surface<2;++surface) for (int i=0;i<tracker::checkTypeCount;++i) {
-        std::string label=std::string(surface ? "Minimap: " : "Map: ")+types[i];
+        std::string label=uiText(surface ? "Minimap: " : "Map: ")+uiText(types[i]);
         control=UI_CONTROL_DESC_INIT; control.kind=UI_CONTROL_TOGGLE; control.label=label.c_str();
         control.get=typeGet; control.set=typeSet; control.user_data=surface ? &tracker::minimapTypes[i] : &tracker::mapTypes[i];
-        result=svc_ui->pane_add_control(mod_ctx,pane,&control,nullptr);
+        result=addControl(pane,&control,nullptr);
         if (result!=MOD_OK) return result;
     }
-    result = svc_ui->pane_add_text(mod_ctx, pane, status.c_str(), &settingsStatus);
+    result = svc_ui->pane_add_text(mod_ctx, pane, displayedStatus().c_str(), &settingsStatus);
     if (result != MOD_OK) return result;
     return svc_ui->pane_add_text(mod_ctx, pane,
-        "Native RmlUi tracker. The current SDK window captures game input and cannot detach onto another monitor. Filters and the normal-game option are remembered across restarts. Randomizer seed settings are stored per save slot.", nullptr);
+        uiText("Native RmlUi tracker. The current SDK window captures game input and cannot detach onto another monitor. Filters and the normal-game option are remembered across restarts. Randomizer seed settings are stored per save slot.").c_str(), nullptr);
 }
 ModResult updateSettings(ModContext*, void*, ModError*) {
     for (int device=0;device<2;++device) {
         int64_t value=0; svc_config->get_int(mod_ctx,device ? controllerBinding : keyboardBinding,&value);
-        const auto label=std::string(device ? "Click any button on controller to assign: " : "Click any key on keyboard to assign: ")+tracker::bindingName(static_cast<int>(value),device!=0);
-        if (bindingButtons[device]) svc_ui->control_set_label(mod_ctx,bindingButtons[device],label.c_str());
+        const auto label=uiFormat(device ? "Click any button on controller to assign: {binding}" : "Click any key on keyboard to assign: {binding}",
+            {{"binding",tracker::bindingName(static_cast<int>(value),device!=0)}});
+        if (bindingButtons[device]) setControlLabel(bindingButtons[device],label.c_str());
     }
-    return settingsStatus ? svc_ui->elem_set_text(mod_ctx, settingsStatus, status.c_str()) : MOD_OK;
+    return settingsStatus ? svc_ui->elem_set_text(mod_ctx, settingsStatus, displayedStatus().c_str()) : MOD_OK;
 }
 }
 
@@ -1409,7 +1497,25 @@ MOD_EXPORT ModResult mod_initialize(ModError* error) {
     if(preferenceResult!=MOD_OK) return mods::set_error(error,preferenceResult,"TPTracker filter preferences could not be restored");
     const auto modeResult=preferences.bind("normal-game",normalGameMode,false);
     if(modeResult!=MOD_OK) return mods::set_error(error,modeResult,"TPTracker game mode preference could not be restored");
+    const auto languageResult=preferences.bind("korean-interface",koreanEnabled,true);
+    if(languageResult!=MOD_OK) return mods::set_error(error,languageResult,"TPTracker language preference could not be restored");
+    koreanRequestedAtLaunch=koreanEnabled;
     ResourceBuffer buffer = RESOURCE_BUFFER_INIT;
+    if(svc_resource->load(mod_ctx,"ko.json",&buffer)==MOD_OK) {
+        try { localization.load(Json::parse(static_cast<const char*>(buffer.data),static_cast<const char*>(buffer.data)+buffer.size)); }
+        catch(const std::exception& e) { mods::log::warn("TPTracker: Korean translation resource unavailable: {}",e.what()); }
+        svc_resource->free(mod_ctx,&buffer);
+    }
+    if(koreanEnabled && localization.available()) {
+        const auto font=tracker::prepareKoreanFont(svc_resource,svc_host,mod_ctx);
+        if(font.ready()) {
+            koreanFontAvailable=svc_ui->register_styles(mod_ctx,UI_SCOPE_WINDOW,font.rcss.c_str(),&koreanStyle)==MOD_OK;
+            if(!koreanFontAvailable) koreanLoadError="Korean font stylesheet could not be registered.";
+        } else koreanLoadError=font.error;
+        if(!koreanFontAvailable) mods::log::warn("TPTracker: {} English UI remains active.",koreanLoadError);
+    }
+    localization.setEnabled(koreanEnabled && koreanFontAvailable);
+    buffer=RESOURCE_BUFFER_INIT;
     if (svc_resource->load(mod_ctx, "catalogue.json", &buffer) != MOD_OK)
         return mods::set_error(error, MOD_ERROR, "TPTracker catalogue is missing");
     try { model.load(Json::parse(static_cast<const char*>(buffer.data), static_cast<const char*>(buffer.data) + buffer.size)); }
@@ -1505,6 +1611,8 @@ MOD_EXPORT ModResult mod_shutdown(ModError*) {
     tracker::resetInput();
     if (logicJob.valid()) logicJob.wait();
     if (window) svc_ui->window_close(mod_ctx, window);
+    if (koreanStyle) svc_ui->unregister_styles(mod_ctx,koreanStyle);
+    koreanStyle=0;
     if (itemObserver) svc_item->unobserve_gives(mod_ctx, itemObserver);
     if (saveObserver) svc_save->unobserve_saves(mod_ctx, saveObserver);
     window = 0; inventoryElement = checksElement = 0; itemObserver = 0; saveObserver = 0;

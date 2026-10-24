@@ -1,5 +1,5 @@
 #pragma once
-#include "model.hpp"
+#include "localization.hpp"
 #include <stdexcept>
 
 namespace tracker {
@@ -35,25 +35,34 @@ public:
         }
         data_=data; // Commit only after validation; bad reloads preserve the previous guidebook.
     }
-    std::vector<std::string> blocks(const std::string& name) const {
-        std::vector<std::string> out={"<div class='tp-group'>How to obtain</div>"};
+    std::vector<std::string> blocks(const std::string& name, const Localization* locale = nullptr, bool normalGame = false) const {
+        const auto text = [&](std::string_view english) { return escape(locale ? locale->stringLookup(english) : std::string(english)); };
+        std::vector<std::string> out={"<div class='tp-group'>"+text("How to obtain")+"</div>"};
         if (!data_.contains("checks") || !data_.at("checks").contains(name)) {
-            out.push_back("<div>Collection directions are unavailable for this check.</div>");
+            out.push_back("<div>"+text("Collection directions are unavailable for this check.")+"</div>");
             return out;
         }
         const auto& guide=data_.at("checks").at(name);
-        for (const auto& step : guide.at("steps"))
-            out.push_back("<div>"+escape(step.get<std::string>())+"</div>");
+        const auto localizedSteps = locale ? locale->guideSteps(name) : std::nullopt;
+        if (localizedSteps) {
+            for (const auto& step : *localizedSteps) out.push_back("<div>"+escape(step)+"</div>");
+        } else {
+            if (locale && locale->enabled())
+                out.push_back("<div class='tp-note'>"+text("Guide text is shown in English; a Korean translation is not yet available.")+"</div>");
+            for (const auto& step : guide.at("steps")) out.push_back("<div>"+escape(step.get<std::string>())+"</div>");
+        }
         const auto kind=guide.value("kind",std::string{});
-        if(kind=="hint_sign") out.push_back("<div>Read every page of the sign. TPTracker saves the displayed hint in Notes and marks the sign done.</div>");
-        if(kind=="twilit_insect") out.push_back("<div>Use Wolf Link&#39;s senses to reveal the insect, defeat it, and collect its drop. The game marks these insects on its own map.</div>");
-        out.push_back("<div class='tp-note'>Collection guide only. The requirements on the left use your seed settings and inventory; randomized rewards may differ.</div>");
+        if(kind=="hint_sign") out.push_back("<div>"+text("Read every page of the sign. TPTracker saves the displayed hint in Notes and marks the sign done.")+"</div>");
+        if(kind=="twilit_insect") out.push_back("<div>"+text("Use Wolf Link's senses to reveal the insect, defeat it, and collect its drop. The game marks these insects on its own map.")+"</div>");
+        out.push_back("<div class='tp-note'>"+text(normalGame ?
+            "Collection guide only. The requirements on the left use normal-game story progress and inventory." :
+            "Collection guide only. The requirements on the left use your seed settings and inventory; randomized rewards may differ.")+"</div>");
         std::string credits;
         for (const auto& id : guide.at("sources")) {
             if(!credits.empty()) credits+="; ";
-            credits+=data_.at("sources").at(id.get<std::string>()).at("label").get<std::string>();
+            credits+=text(data_.at("sources").at(id.get<std::string>()).at("label").get<std::string>());
         }
-        out.push_back("<div class='tp-note'>Sources: "+escape(credits)+"</div>");
+        out.push_back("<div class='tp-note'>"+text("Sources: ")+credits+"</div>");
         return out;
     }
 };
