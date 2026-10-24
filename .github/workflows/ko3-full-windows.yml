@@ -1,0 +1,83 @@
+name: TPTracker ko3 - Windows x64
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ko3-complete]
+    paths:
+      - '.github/workflows/ko3-full-windows.yml'
+      - 'tools/ko3/**'
+
+permissions:
+  contents: write
+
+concurrency:
+  group: tptracker-ko3-windows-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: Build complete Korean tracker for Dusklight 2.0.3
+    runs-on: windows-2022
+    timeout-minutes: 50
+    steps:
+      - name: Check out pinned sources with history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+
+      - name: Prepare official map-font build tools
+        run: python -m pip install --disable-pip-version-check --only-binary=:all: Pillow==12.3.0 fonttools==4.63.0
+        shell: pwsh
+
+      - name: Apply audited ko3 code and translations
+        run: python tools/ko3/bootstrap.py
+        shell: pwsh
+
+      - name: Regenerate Korean native map atlas
+        run: python tools/build_map_font.py
+        shell: pwsh
+
+      - name: Verify exact ko3 font assets
+        shell: pwsh
+        run: |
+          $atlas = (git hash-object res/fonts/map-ko.bti).Trim()
+          $layout = (git hash-object res/fonts/map-ko.json).Trim()
+          if ($atlas -ne '8572fbc93ae824058d0f67f5fa4520d279b36fbc') { throw "ko3 atlas differs: $atlas" }
+          if ($layout -ne '945021dd21287b952d37b70fb6862f30ace618b5') { throw "ko3 font metadata differs: $layout" }
+          Write-Host 'The native Korean atlas exactly matches the audited ko3 assets.'
+
+      - name: Build, test and package Windows x64 mod
+        shell: pwsh
+        run: ./tools/build_windows_vanilla.ps1 -Generator 'Visual Studio 17 2022' -BuildDirectory build-windows-ko3
+
+      - name: Verify final mod package
+        shell: pwsh
+        run: |
+          $expected = 'TPTracker-0.4.44+vanilla.2.ko3-windows-amd64.dusk'
+          $artifact = Join-Path 'dist' $expected
+          if (-not (Test-Path $artifact)) { throw 'ko3 output package missing' }
+          $sha = (Get-FileHash -Algorithm SHA256 $artifact).Hash.ToLowerInvariant()
+          Write-Host "Package SHA-256: $sha"
+          "## TPTracker ko3 Windows build`n- Package: ``$expected```n- SHA256: ``$sha```n- Dusklight 2.0.3; not live-gameplay-tested." | Out-File -FilePath $env:GITHUB_STEP_SUMMARY -Encoding utf8 -Append
+
+      - name: Commit reviewed ko3 source into integration branch
+        shell: pwsh
+        run: |
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- CMakeLists.txt mod.json src/localization.hpp src/localized_controls.hpp src/map.cpp src/map.hpp src/mod.cpp tests/localization_tests.cpp tests/localized_controls_tests.cpp tests/map_text_tests.cpp res/ko.json res/fonts/map-ko.bti res/fonts/map-ko.json
+          git diff --cached --check
+          if (-not (git diff --cached --quiet)) {
+            git commit -m 'Complete Korean tracker logic and native map translations [skip ci]'
+            git push origin HEAD:refs/heads/ko3-complete
+          }
+
+      - name: Upload installable ko3 package and verification
+        uses: actions/upload-artifact@v4
+        with:
+          name: TPTracker-ko3-windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
