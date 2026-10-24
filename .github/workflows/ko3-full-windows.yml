@@ -28,7 +28,7 @@ jobs:
           persist-credentials: true
 
       - name: Prepare official map-font build tools
-        run: python -m pip install --disable-pip-version-check --only-binary=:all: Pillow==12.3.0 fonttools==4.63.0
+        run: "python -m pip install --disable-pip-version-check --only-binary=:all: Pillow==12.3.0 fonttools==4.63.0"
         shell: pwsh
 
       - name: Apply audited ko3 code and translations
