@@ -33,9 +33,17 @@ std::string escape(std::string_view s) {
 static std::string scalar(const Json& value) { return value.is_string() ? value.get<std::string>() : value.dump(); }
 static std::string checkRequirement(const std::string& name, const std::string& requirement, bool normalGame) {
     if (normalGame && name == "Barnes Bomb Bag") {
-        const std::string native = "Human_Link and Vanilla_Barnes_Shop_Open";
-        return requirement == "Nothing" ? native : "(" + requirement + ") and " + native;
+        // Native purchase is available when Barnes opens after Goron Mines.
+        // Requiring the randomizer's large-rupee farm (Lake Hylia) creates a
+        // cycle: bombs -> northern rocks -> Lake Hylia -> bomb purchase/refill.
+        return "Human_Link and Vanilla_Barnes_Shop_Open and 'Can_Farm_Rupees'";
     }
+    return requirement;
+}
+static std::string areaEventRequirement(const std::string& area, const std::string& event,
+                                        const std::string& requirement, bool normalGame) {
+    if (normalGame && area == "Kakariko Barnes Bomb Shop Lower" && event == "Can Refill Regular Bombs")
+        return "Human_Link and Vanilla_Barnes_Shop_Open and 'Can_Farm_Rupees'";
     return requirement;
 }
 std::string Model::checkDetails(const std::string& name, bool advanced, LogicDisplay formatLogic) const {
@@ -82,8 +90,9 @@ std::string Model::checkDetails(const std::string& name, bool advanced, LogicDis
             for(const auto& [event,value]:area.at("Events").items()) {
                 if(shown.size()>=48 || shown.contains(event) || expressions.find(words(event))==std::string::npos) continue;
                 shown.insert(event); added=true;
-                const auto definition=words(scalar(value)); expressions+=" "+definition;
-                if(advanced) out+="<div class='tp-group'>"+escape(words(event))+"</div><div>"+escape(displayLogic(scalar(value)))+"</div>";
+                const auto nativeRequirement=areaEventRequirement(area.at("Name").get<std::string>(),event,scalar(value),normalGame);
+                const auto definition=words(nativeRequirement); expressions+=" "+definition;
+                if(advanced) out+="<div class='tp-group'>"+escape(words(event))+"</div><div>"+escape(displayLogic(nativeRequirement))+"</div>";
             }
         if (!added) break;
     }
@@ -559,6 +568,15 @@ void Model::solve() {
     }
     reached["Root"].fill(Truth::yes);
     reached["Root"][4] = Truth::no;
+    // Restoring Lanayru places native human Link at Lake Hylia. That completed
+    // story transition is an additional proven starting point, independent of
+    // retracing the randomizer's fixed Ordon spawn with the present loadout.
+    // Do not infer this from a stage name, tear count, or an unknown/wolf form;
+    // caves, equipment checks and the final castle barrier retain their gates.
+    if (normalGame && reached.contains("Lake Hylia") &&
+        evaluate("Starting_Form == Human") == Truth::yes &&
+        evaluate("Can_Complete_Prologue and Can_Complete_Lanayru_Twilight") == Truth::yes)
+        reached.at("Lake Hylia")[0] = Truth::yes;
     bool changed = true;
     size_t passes = 0;
     while (changed && ++passes <= reached.size() * 8 + 1) {
@@ -590,7 +608,8 @@ void Model::solve() {
                 if (area.contains("Events") && area.at("Events").is_object())
                     for (const auto& [event, requirement] : area.at("Events").items())
                         if (!normalGame || vanillaStoryKey(event).empty())
-                            promote(events[event], both(reach, evaluate(scalar(requirement), f)));
+                            promote(events[event], both(reach, evaluate(
+                                areaEventRequirement(name,event,scalar(requirement),normalGame), f)));
                 if (area.contains("Exits") && area.at("Exits").is_object())
                     for (const auto& [vanilla, requirement] : area.at("Exits").items()) {
                         const auto exit=entranceDestination(name,vanilla);

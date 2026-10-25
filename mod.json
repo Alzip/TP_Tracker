@@ -1,7 +1,7 @@
 {
   "id": "com.mikey022.tp_randomizer_tracker",
   "name": "TPTracker",
-  "version": "0.4.44+vanilla.2.ko3",
+  "version": "0.4.44+vanilla.3.ko4",
   "author": "mikey022",
   "description": "Dusklight 2.0.3용 일반 게임 지원 트래커. 획득 공략, 항목·지역 이름, 접근 조건, 설정과 게임 지도 표시를 한국어로 제공합니다.",
   "icon": "res/Poster.png",
