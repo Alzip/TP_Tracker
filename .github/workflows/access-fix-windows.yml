@@ -1,0 +1,51 @@
+name: Verify and build normal-game area access fix
+on:
+  push:
+    branches: ['fix/vanilla-lanayru-access']
+    paths:
+      - '.github/workflows/access-fix-windows.yml'
+      - 'tools/apply_access_fix.py'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply exact locally tested access changes
+        shell: pwsh
+        run: python tools/apply_access_fix.py
+      - name: Build and run all regression and package checks
+        shell: pwsh
+        run: ./tools/build_windows_vanilla.ps1 -Generator 'Visual Studio 17 2022' -BuildDirectory build-windows-access-fix
+      - name: Record successful source and remove temporary transfer scaffolding
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/model.cpp CMakeLists.txt mod.json tests/vanilla_access_tests.cpp ACCESS_FIX_KO.md
+          git rm -- tools/apply_access_fix.py .github/workflows/access-fix-windows.yml .github/workflows/access-source-snapshot.yml
+          if ($LASTEXITCODE -ne 0) { throw 'Scaffolding cleanup failed' }
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Source whitespace check failed' }
+          git commit -m 'Fix normal-game Lanayru access and native bomb resupply [skip ci]'
+          if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
+          git push origin HEAD:refs/heads/fix/vanilla-lanayru-access
+          if ($LASTEXITCODE -ne 0) { throw 'Source branch changed; refusing to overwrite it' }
+          $source = (git rev-parse HEAD).Trim()
+          $info = Get-Content dist/BUILD_INFO.json -Raw | ConvertFrom-Json
+          $info.source_revision = $source
+          $info | ConvertTo-Json -Depth 12 | Set-Content dist/BUILD_INFO.json -Encoding utf8
+          Copy-Item ACCESS_FIX_KO.md dist/ACCESS_FIX_KO.md
+          "## Normal-game access fix`nSource: ``$source```nPackage: ``$($info.package)```nSHA-256: ``$($info.sha256)```nAll regression, resource and metadata checks passed. Live gameplay not tested." | Add-Content $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: TPTracker-vanilla3-ko4-windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
