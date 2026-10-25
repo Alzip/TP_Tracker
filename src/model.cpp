@@ -1,6 +1,7 @@
 #include "model.hpp"
 #include "seed_data.hpp"
 #include "vanilla.hpp"
+#include "vanilla_desert.hpp"
 #include <algorithm>
 #include <charconv>
 #include <sstream>
@@ -46,6 +47,12 @@ static std::string areaEventRequirement(const std::string& area, const std::stri
         return "Human_Link and Vanilla_Barnes_Shop_Open and 'Can_Farm_Rupees'";
     return requirement;
 }
+static std::string areaExitRequirement(const std::string& area, const std::string& exit,
+                                       const std::string& requirement, bool normalGame) {
+    if (normalGame && area == "Bulblin Camp" && exit == "Outside Arbiters Grounds")
+        return "Vanilla_Bulblin_Camp_Cleared";
+    return requirement;
+}
 std::string Model::checkDetails(const std::string& name, bool advanced, LogicDisplay formatLogic) const {
     const Json* selected = nullptr;
     for (const auto& check : catalogue.at("checks")) if (check.at("name") == name) { selected = &check; break; }
@@ -56,6 +63,8 @@ std::string Model::checkDetails(const std::string& name, bool advanced, LogicDis
     std::string state = obtained.contains(name) ? "DONE" : skipped.contains(name) ? "SKIPPED" : status == accessible.end() ? "UNKNOWN" : label(status->second);
     std::string out = "<div class='tp-title'>" + escape(name) + "</div><div class='tp-state " + state + "'>" + state + " | " + escape(selected->value("group", "Other")) + "</div>";
     out += "<div class='tp-note'>Reach the area, then meet the local requirement. Alternate routes are listed separately.</div>";
+    if (normalGame && vanillaSharedCampChest(name))
+        out += "<div class='tp-note'>These two native chests share a save flag. New pickups are recorded separately. For an earlier pickup, use Mark collected; this changes only the tracker.</div>";
     std::string expressions;
     for (const auto& route : selected->at("access")) {
         const std::string area = route.at("area");
@@ -577,6 +586,15 @@ void Model::solve() {
         evaluate("Starting_Form == Human") == Truth::yes &&
         evaluate("Can_Complete_Prologue and Can_Complete_Lanayru_Twilight") == Truth::yes)
         reached.at("Lake Hylia")[0] = Truth::yes;
+    // The native first-visit event proves the desert landing independently of
+    // the consumed memo and of unlocked portals. Preserve current form and all
+    // local tool/gate requirements. A map bit or a stage name alone is not proof.
+    if (normalGame && reached.contains("Gerudo Desert") &&
+        evaluate("Vanilla_Desert_Visited") == Truth::yes) {
+        const auto form = inventory.find("Vanilla Current Wolf Form");
+        if (form != inventory.end() && (form->second == 0 || form->second == 1))
+            reached.at("Gerudo Desert")[form->second == 1 ? 2 : 0] = Truth::yes;
+    }
     bool changed = true;
     size_t passes = 0;
     while (changed && ++passes <= reached.size() * 8 + 1) {
@@ -615,7 +633,7 @@ void Model::solve() {
                         const auto exit=entranceDestination(name,vanilla);
                         if (!reached.contains(exit)) continue;
                         auto cleared = twilightCleared.at(exit);
-                        auto access = both(reach, evaluate(scalar(requirement), f));
+                        auto access = both(reach, evaluate(areaExitRequirement(name,vanilla,scalar(requirement),normalGame), f));
                         if (cleared != Truth::no && f < 4)
                             promote(reached.at(exit)[f], both(access, cleared));
                         if (cleared != Truth::yes)
@@ -628,7 +646,7 @@ void Model::solve() {
                 for (const auto& [vanilla, requirement] : area.at("Exits").items()) {
                     const auto exit=entranceDestination(name,vanilla);
                     if (!reached.contains(exit) || twilightCleared.at(exit) == Truth::yes) continue;
-                    auto access = both(anyForm, evaluate(scalar(requirement), 4));
+                    auto access = both(anyForm, evaluate(areaExitRequirement(name,vanilla,scalar(requirement),normalGame), 4));
                     promote(reached.at(exit)[4], both(access, twilightCleared.at(exit) == Truth::no ? Truth::yes : Truth::unknown));
                 }
         }

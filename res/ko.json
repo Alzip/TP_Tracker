@@ -2,6 +2,9 @@
   "version": 1,
   "language": "ko",
   "strings": {
+    "Mark collected (tracker only)": "획득 완료로 표시 (트래커만)",
+    "Undo collected mark (tracker only)": "획득 완료 표시 취소 (트래커만)",
+    "These two native chests share a save flag. New pickups are recorded separately. For an earlier pickup, use Mark collected; this changes only the tracker.": "일반 게임에서 이 두 상자는 저장 플래그를 공유합니다. 이후 획득은 개별 기록하며, 이전에 획득한 상자는 완료로 표시할 수 있습니다. 게임 진행 상태는 변경하지 않습니다.",
     "Area access": "지역 접근",
     "Area access: ": "지역 접근: ",
     "Local requirement": "현장 조건",
@@ -2018,6 +2021,8 @@
     "Vanilla Lanayru Twilight Cleared": "일반 게임 라넬 황혼 해제",
     "Vanilla Current Wolf Form": "일반 게임 현재 늑대 형태",
     "Vanilla Barnes Shop Open": "일반 게임 반즈의 폭탄 가게 개점",
+    "Vanilla Desert Visited": "일반 게임 겔드 사막 방문 완료",
+    "Vanilla Bulblin Camp Cleared": "일반 게임 불블린 야영지 탈출 완료",
     "Charlo Donation Blessing": "차를로 기부의 축복",
     "STAR Prize 1": "스타 게임 1차 보상",
     "STAR Prize 2": "스타 게임 2차 보상",

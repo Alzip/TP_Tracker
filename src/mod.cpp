@@ -1,6 +1,7 @@
 #include "inventory_adapters.hpp"
 #include "vanilla.hpp"
 #include "vanilla_completion.hpp"
+#include "vanilla_desert.hpp"
 #include "model.hpp"
 #include "entrance_journal.hpp"
 #include "notebook.hpp"
@@ -113,7 +114,7 @@ std::string selectedItem;
 bool detailAdvanced=false;
 UiElementHandle detailToggle=0;
 bool mapDetail=false, mapDetailClosing=false;
-UiElementHandle detailText = 0, detailButton = 0;
+UiElementHandle detailText = 0, detailButton = 0, detailCompletionButton = 0;
 std::string selectedCheck;
 std::string detailMarkup;
 uint64_t detailRevision=0;
@@ -128,10 +129,13 @@ void navigateDetail() {
     const auto now=std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
     const int direction=detailNavigation.sample(x,y,now);
     if (std::abs(detailNavigation.held)!=2 || detailSectionCount==0) return;
-    const int last=static_cast<int>(detailSectionCount)-1+(skipSelectedDisabled(nullptr,nullptr) ? 0 : 1);
+    std::vector<UiElementHandle> targets(detailAnchors.begin(),detailAnchors.begin()+detailSectionCount);
+    if (detailButton && !skipSelectedDisabled(nullptr,nullptr)) targets.push_back(detailButton);
+    if (detailCompletionButton) targets.push_back(detailCompletionButton);
+    const int last=static_cast<int>(targets.size())-1;
     if(direction) detailScrollRow=std::clamp(detailScrollRow+(direction==2 ? 1 : -1),0,last);
     detailScrollRow=std::clamp(detailScrollRow,0,last);
-    svc_ui->elem_focus(mod_ctx,detailScrollRow==static_cast<int>(detailSectionCount) ? detailButton : detailAnchors[detailScrollRow]);
+    svc_ui->elem_focus(mod_ctx,targets[detailScrollRow]);
 }
 UiMenuTabHandle menuTab = 0;
 ConfigVarHandle keyboardBinding = 0, controllerBinding = 0;
@@ -284,6 +288,13 @@ void skipSelectedCheck(ModContext*, void*) {
         ++revision;
     }
 }
+void toggleSelectedCampCompletion(ModContext*, void*) {
+    const auto oldJournal=journal, oldObtained=model.obtained, oldSkipped=model.skipped;
+    if (tracker::toggleSharedCampCompletion(model,journal,selectedCheck)) {
+        if (!persist()) { journal=oldJournal; model.obtained=oldObtained; model.skipped=oldSkipped; }
+        ++revision;
+    }
+}
 bool skipSelectedDisabled(ModContext*,void*) { return model.obtained.contains(selectedCheck) || !model.aliases.contains(selectedCheck); }
 ModResult updateDetail(ModContext*,void*,ModError*) {
     if (!detailText) return MOD_OK;
@@ -295,6 +306,8 @@ ModResult updateDetail(ModContext*,void*,ModError*) {
         setControlLabel(detailButton,skipped ? "Skipped" : "Skip this check");
         setControlTooltip(detailButton,skipped ? "Undo skipped check?" : "Hide this check from the maps until restored.");
     }
+    if(detailCompletionButton) setControlLabel(detailCompletionButton,
+        journal.contains(selectedCheck) ? "Undo collected mark (tracker only)" : "Mark collected (tracker only)");
     if(detailToggle) setControlLabel(detailToggle,detailAdvanced ? "Hide full logic" : "Show full logic");
     const auto markup=localization.rml(model.checkDetails(selectedCheck,detailAdvanced,
         [](std::string_view expression) { return localization.logic(expression); }));
@@ -350,6 +363,13 @@ ModResult buildDetail(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
     button.on_pressed=skipSelectedCheck; button.is_disabled=skipSelectedDisabled;
     result=addControl(left,&button,&detailButton);
     if(result!=MOD_OK) return result;
+    if (model.normalGame && tracker::vanillaSharedCampChest(selectedCheck)) {
+        UiControlDesc recovered=UI_CONTROL_DESC_INIT;
+        recovered.kind=UI_CONTROL_BUTTON; recovered.label="Mark collected (tracker only)";
+        recovered.on_pressed=toggleSelectedCampCompletion;
+        result=addControl(left,&recovered,&detailCompletionButton);
+        if(result!=MOD_OK) return result;
+    }
     // Direct-pane rows let native controller focus scroll each guide paragraph
     // into view, just like the requirements on the left. Text is escaped RML.
     for(const auto& markup : checkGuides.blocks(selectedCheck,&localization,model.normalGame)) {
@@ -370,7 +390,7 @@ ModResult buildDetail(ModContext*,UiWindowHandle,UiElementHandle left,UiElementH
     detailRevision=0;
     return updateDetail(nullptr,nullptr,nullptr);
 }
-void detailClosed(ModContext*,UiWindowHandle,void*) { mapDetail=mapDetailClosing=false; detailWindow=0; detailText=detailButton=detailToggle=0; detailAdvanced=false; selectedCheck.clear(); detailMarkup.clear(); detailRevision=0; detailSections.clear(); detailAnchors.clear(); detailBlocks.clear(); detailSectionCount=0; detailScrollRow=0; detailNavigation={}; stickNavigation={}; }
+void detailClosed(ModContext*,UiWindowHandle,void*) { mapDetail=mapDetailClosing=false; detailWindow=0; detailText=detailButton=detailToggle=detailCompletionButton=0; detailAdvanced=false; selectedCheck.clear(); detailMarkup.clear(); detailRevision=0; detailSections.clear(); detailAnchors.clear(); detailBlocks.clear(); detailSectionCount=0; detailScrollRow=0; detailNavigation={}; stickNavigation={}; }
 bool openCheckDetails(const std::string& name) {
     if(detailWindow || !model.aliases.contains(name)) return false;
     selectedCheck=name;
@@ -612,7 +632,15 @@ void scan() {
         model.countedItems.insert(small);
         inventory[std::string(key.name) + (key.save == 0x14 ? " Bedroom Key" : " Big Key")] = dComIfGs_isDungeonItemBossKey(key.save) != 0;
     }
+    bool observedNativeKey=false;
     if (model.normalGame) {
+        const int campKeys = dStage_stagInfo_GetSaveTbl(stageInfo)==0x0a ? dComIfGs_getKeyNum()
+            : dComIfGs_getSaveData()->getSave(0x0a).getBit().getKeyNum();
+        // Capture a key observed in the actual desert save table before it is
+        // consumed at the gate; never substitute a dungeon's current key count.
+        if (campKeys>0) observedNativeKey=journal.insert("Bulblin Guard Key").second;
+        tracker::vanillaDesertProgress(inventory,campKeys,journal.contains("Bulblin Guard Key"),
+            [](int event) { return savedEvent(static_cast<unsigned>(event)); });
         tracker::vanillaInventory(inventory,
             [](int id) { return dComIfGs_isItemFirstBit(static_cast<u8>(id)) != 0; },
             [](int slot) { return dComIfGs_getItem(slot,false); },
@@ -626,19 +654,20 @@ void scan() {
         for (const char* name : {"Forest Temple","Goron Mines","Lakebed Temple","Arbiters Grounds",
                                 "Snowpeak Ruins","Temple of Time","City in the Sky","Palace of Twilight"})
             inventory[std::string("Vanilla ")+name+" Complete"] = dComIfGs_isStageBossEnemy(dungeon++) != 0;
-        inventory["Vanilla Current Wolf Form"] = dComIfGp_getLinkPlayer() && daPy_py_c::checkNowWolf();
+        inventory["Vanilla Current Wolf Form"] = dComIfGp_getLinkPlayer() ? (daPy_py_c::checkNowWolf() ? 1 : 0) : -1;
     }
     std::set<std::string> hiddenMarkers;
     auto completed = journal;
     for (const auto& check : model.catalogue.at("checks")) {
         if (check.contains("map_hide_event") && savedEvent(check.at("map_hide_event").get<unsigned>()))
             hiddenMarkers.insert(check.at("name").get<std::string>());
-        const auto nativeComplete = model.normalGame ? tracker::vanillaCompletionOverride(check,
+        auto nativeComplete = model.normalGame ? tracker::vanillaDesertCompletion(check,inventory) : std::nullopt;
+        if (!nativeComplete.has_value() && model.normalGame) nativeComplete = tracker::vanillaCompletionOverride(check,
             [](int event) { return savedEvent(static_cast<unsigned>(event)); },
             [](int id) { return dComIfGs_isItemFirstBit(static_cast<u8>(id)) != 0; },
             [](int save) { return dComIfGs_isStageLife(save) != 0; },
             [](int index) { return dComIfGs_isCollectCrystal(index) != 0; },
-            [](int index) { return dComIfGs_isCollectMirror(index) != 0; }) : std::nullopt;
+            [](int index) { return dComIfGs_isCollectMirror(index) != 0; });
         if (nativeComplete.has_value()) {
             if (*nativeComplete) completed.insert(check.at("name").get<std::string>());
         } else for (const auto& flag : check.at("flags"))
@@ -659,7 +688,7 @@ void scan() {
     model.obtained = std::move(completed);
     bool unskipped=false;
     for (const auto& name : model.obtained) unskipped=model.skipped.erase(name)>0 || unskipped;
-    if (unskipped) persist();
+    if (unskipped || observedNativeKey) persist();
     if (changed) {
         ++revision;
         ++logicGeneration;
@@ -691,10 +720,11 @@ void updateLogic() {
 
 void onGive(ModContext*, const ItemGiveInfo* info, void*) {
     // Grants are the commit point. resolve_check is a preview and must never mark completion.
-    if (info && info->check_name && model.give(info->check_name)) {
-        journal.insert(model.aliases.at(info->check_name));
-        ++revision;
-        persist();
+    if (info && info->check_name) {
+        const std::string name = model.normalGame
+            ? tracker::vanillaGrantName(info->check_name,dComIfGp_roomControl_getStayNo(),info->item)
+            : std::string(info->check_name);
+        if (tracker::recordTrackedGrant(model,journal,name)) { ++revision; persist(); }
     }
     engineDirty = true;
 }
