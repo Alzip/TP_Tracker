@@ -1,0 +1,53 @@
+name: Verify and build native desert tracking fix
+on:
+  push:
+    branches: ['fix/vanilla-desert-checks']
+    paths:
+      - '.github/workflows/desert-fix-windows.yml'
+      - 'tools/apply_desert_fix.py'
+permissions:
+  contents: write
+jobs:
+  build:
+    runs-on: windows-2022
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          fetch-depth: 0
+          persist-credentials: true
+      - name: Apply exact locally tested source and verify hashes
+        shell: pwsh
+        run: python tools/apply_desert_fix.py
+      - name: Build and run all regression and package checks
+        shell: pwsh
+        run: ./tools/build_windows_vanilla.ps1 -Generator 'Visual Studio 17 2022' -BuildDirectory build-windows-desert-fix
+      - name: Commit verified source and remove temporary transfer files
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add -- src/model.cpp src/mod.cpp src/vanilla_desert.hpp CMakeLists.txt mod.json res/ko.json tests/vanilla_desert_tests.cpp tests/vanilla_grant_tests.cpp DESERT_FIX_KO.md
+          if ($LASTEXITCODE -ne 0) { throw 'Source staging failed' }
+          git rm -- tools/apply_desert_fix.py .github/workflows/desert-fix-windows.yml .github/workflows/desert-source-snapshot.yml
+          if ($LASTEXITCODE -ne 0) { throw 'Transfer cleanup failed' }
+          git diff --cached --check
+          if ($LASTEXITCODE -ne 0) { throw 'Source validation failed' }
+          git commit -m 'Fix native desert access and distinct camp chest collection [skip ci]'
+          if ($LASTEXITCODE -ne 0) { throw 'Source commit failed' }
+          git push origin HEAD:refs/heads/fix/vanilla-desert-checks
+          if ($LASTEXITCODE -ne 0) { throw 'Branch changed; refusing to overwrite' }
+          $source = (git rev-parse HEAD).Trim()
+          $info = Get-Content dist/BUILD_INFO.json -Raw | ConvertFrom-Json
+          $info.source_revision = $source
+          $info | ConvertTo-Json -Depth 12 | Set-Content dist/BUILD_INFO.json -Encoding utf8
+          Copy-Item DESERT_FIX_KO.md dist/DESERT_FIX_KO.md
+          Copy-Item build-windows-desert-fix/Testing/Temporary/LastTest.log dist/TEST_RESULTS.txt
+          "## Native desert tracking fix`nSource: ``$source```nPackage: ``$($info.package)```nSHA-256: ``$($info.sha256)```nAll regression, resource and metadata checks passed. Live gameplay not tested." | Add-Content $env:GITHUB_STEP_SUMMARY
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
+        with:
+          name: TPTracker-vanilla4-ko5-windows-x64
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
